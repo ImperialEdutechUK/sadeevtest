@@ -239,7 +239,16 @@ export async function deleteRubric(actorId: string, id: string) {
   return { archived: false };
 }
 
-/** Create the preset rubrics if they do not exist yet (idempotent). */
+/**
+ * Create the preset rubrics if they do not exist yet (idempotent).
+ *
+ * Default selection: a meeting type with no default gets the first preset
+ * installed for it. A preset flagged `isDefault` takes over as the default the
+ * first time it is installed, but only when the current default is another
+ * preset - a custom rubric an administrator has chosen as the default is never
+ * displaced, and administrators can change the default in the Criteria screen
+ * at any time afterwards (this function never touches existing presets).
+ */
 export async function ensurePresetRubrics(actorId: string | null) {
   for (const preset of PRESET_RUBRICS) {
     const exists = await prisma.rubric.findFirst({ where: { isPreset: true, name: preset.name } });
@@ -256,7 +265,14 @@ export async function ensurePresetRubrics(actorId: string | null) {
         criteria: c.criteria.map((k, ki) => ({ ...k, order: ki })),
       })),
     }, { isPreset: true });
-    const hasDefault = await prisma.rubric.count({ where: { meetingType: preset.meetingType, isDefault: true } });
-    if (!hasDefault) await prisma.rubric.update({ where: { id: created.id }, data: { isDefault: true } });
+    const currentDefault = await prisma.rubric.findFirst({ where: { meetingType: preset.meetingType, isDefault: true } });
+    const takeOver = preset.isDefault === true && currentDefault !== null && currentDefault.isPreset;
+    if (!currentDefault || takeOver) {
+      await prisma.$transaction([
+        prisma.rubric.updateMany({ where: { meetingType: preset.meetingType, isDefault: true }, data: { isDefault: false } }),
+        prisma.rubric.update({ where: { id: created.id }, data: { isDefault: true } }),
+      ]);
+      audit({ actorId, action: 'rubric.default_changed', entityType: 'rubric', entityId: created.id, metadata: { name: preset.name, reason: 'preset_installed' } });
+    }
   }
 }

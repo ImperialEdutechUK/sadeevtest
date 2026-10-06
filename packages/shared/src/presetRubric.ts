@@ -39,6 +39,12 @@ export interface PresetRubric {
   name: string;
   description: string;
   meetingType: MeetingType;
+  /**
+   * When true this preset becomes the default for its meeting type the first
+   * time it is installed, unless an administrator has already chosen a
+   * custom (non-preset) rubric as the default.
+   */
+  isDefault?: boolean;
   gradeBands: { min: number; label: string; colour: string; description: string }[];
   categories: PresetCategory[];
 }

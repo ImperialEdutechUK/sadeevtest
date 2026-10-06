@@ -37,7 +37,9 @@ async function main() {
 
   logger.info('seeding: preset criteria');
   await ensurePresetRubrics(admin.id);
-  const rubric = await prisma.rubric.findFirstOrThrow({ where: { isPreset: true }, include: { criteria: { where: { isArchived: false } } } });
+  const rubric =
+    (await prisma.rubric.findFirst({ where: { isPreset: true, isDefault: true, meetingType: 'INDUCTION' }, include: { criteria: { where: { isArchived: false } } } })) ??
+    (await prisma.rubric.findFirstOrThrow({ where: { isPreset: true }, include: { criteria: { where: { isArchived: false } } } }));
 
   if (!cfg.SEED_DEMO_DATA) {
     logger.info('seeding complete (no demo data)');
