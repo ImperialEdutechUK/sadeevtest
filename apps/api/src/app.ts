@@ -62,6 +62,15 @@ export async function buildApp(): Promise<FastifyInstance> {
     await app.register(swaggerUi, { routePrefix: '/api/docs' });
   }
 
+  if (cfg.ORIGIN_VERIFY_SECRET) {
+    const expected = cfg.ORIGIN_VERIFY_SECRET;
+    app.addHook('onRequest', async (request, reply) => {
+      if (request.url.startsWith('/api/health')) return;
+      const got = request.headers['x-origin-verify'];
+      if (got !== expected) return reply.code(403).send({ error: 'FORBIDDEN', message: 'Direct access to the API origin is not allowed' });
+    });
+  }
+
   await app.register(authPlugin);
 
   app.setErrorHandler((error: FastifyError | AppError | Error, request, reply) => {

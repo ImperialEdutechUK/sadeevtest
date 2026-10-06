@@ -1,10 +1,12 @@
 import { PgBoss } from 'pg-boss';
 import { loadConfig } from '../config.js';
 import { logger } from '../logger.js';
+import { SqsJobQueue } from './sqs.js';
 
 /**
- * Background jobs run on pg-boss (a PostgreSQL-backed queue), so the only
- * infrastructure needed is the database the app already has.
+ * Background jobs. Two transports share one interface:
+ *  - pg-boss: a PostgreSQL-backed queue polled by a long-running process (containers, VMs)
+ *  - SQS: messages consumed by a Lambda function (the pay-per-request "cents" deployment)
  */
 export const JOBS = {
   PROCESS_MEETING: 'meeting.process',
@@ -13,6 +15,7 @@ export const JOBS = {
   APPRAISAL_GENERATE: 'appraisal.generate',
   RETENTION_SWEEP: 'maintenance.retention',
 } as const;
+export type JobName = (typeof JOBS)[keyof typeof JOBS];
 
 export interface ProcessMeetingJob {
   meetingId: string;
@@ -33,6 +36,23 @@ export interface AppraisalJob {
   triggeredBy: string | null;
 }
 
+export interface EnqueueOptions {
+  /** Seconds to wait before the job becomes available. */
+  delaySeconds?: number;
+  /** De-duplication key (pg-boss singletonKey; informational for SQS). */
+  singletonKey?: string;
+  retryLimit?: number;
+  expireInSeconds?: number;
+}
+
+export interface JobQueue {
+  readonly name: 'pgboss' | 'sqs';
+  enqueue(job: JobName, data: object, opts?: EnqueueOptions): Promise<void>;
+  stop(): Promise<void>;
+}
+
+/* ---------------- pg-boss driver ---------------- */
+
 let boss: PgBoss | null = null;
 
 export async function getBoss(): Promise<PgBoss> {
@@ -52,21 +72,48 @@ export async function stopBoss(): Promise<void> {
   boss = null;
 }
 
-const DEFAULT_OPTS = { retryLimit: 2, retryDelay: 30, retryBackoff: true, expireInSeconds: 60 * 60 };
+class PgBossJobQueue implements JobQueue {
+  readonly name = 'pgboss' as const;
+  async enqueue(job: JobName, data: object, opts: EnqueueOptions = {}): Promise<void> {
+    const b = await getBoss();
+    await b.send(job, data, {
+      retryLimit: opts.retryLimit ?? 2,
+      retryDelay: 30,
+      retryBackoff: true,
+      expireInSeconds: opts.expireInSeconds ?? 60 * 60,
+      ...(opts.delaySeconds ? { startAfter: opts.delaySeconds } : {}),
+      ...(opts.singletonKey ? { singletonKey: opts.singletonKey } : {}),
+    });
+  }
+  async stop(): Promise<void> {
+    await stopBoss();
+  }
+}
 
-export async function enqueueProcessMeeting(data: ProcessMeetingJob) {
-  const b = await getBoss();
-  return b.send(JOBS.PROCESS_MEETING, data, { ...DEFAULT_OPTS, singletonKey: `process:${data.meetingId}` });
+/* ---------------- selection ---------------- */
+
+let queue: JobQueue | null = null;
+
+export function getJobQueue(): JobQueue {
+  if (queue) return queue;
+  const cfg = loadConfig();
+  queue = cfg.JOB_QUEUE === 'sqs' ? new SqsJobQueue({ queueUrl: cfg.SQS_QUEUE_URL, region: cfg.SQS_REGION }) : new PgBossJobQueue();
+  return queue;
 }
-export async function enqueueTranscribePoll(data: TranscribePollJob, delaySeconds: number) {
-  const b = await getBoss();
-  return b.send(JOBS.TRANSCRIBE_POLL, data, { ...DEFAULT_OPTS, startAfter: delaySeconds });
+
+/** Test seam: replace the queue implementation. */
+export function setJobQueue(q: JobQueue | null): void {
+  queue = q;
 }
-export async function enqueueAnalyse(data: AnalyseJob) {
-  const b = await getBoss();
-  return b.send(JOBS.ANALYSE, data, { ...DEFAULT_OPTS, retryLimit: 1, expireInSeconds: 60 * 30, singletonKey: `analyse:${data.meetingId}:${Date.now()}` });
+
+export async function stopJobQueue(): Promise<void> {
+  if (queue) await queue.stop();
+  queue = null;
 }
-export async function enqueueAppraisal(data: AppraisalJob) {
-  const b = await getBoss();
-  return b.send(JOBS.APPRAISAL_GENERATE, data, { ...DEFAULT_OPTS, retryLimit: 1 });
-}
+
+/* ---------------- typed helpers used by the services ---------------- */
+
+export const enqueueProcessMeeting = (data: ProcessMeetingJob) => getJobQueue().enqueue(JOBS.PROCESS_MEETING, data, { singletonKey: `process:${data.meetingId}` });
+export const enqueueTranscribePoll = (data: TranscribePollJob, delaySeconds: number) => getJobQueue().enqueue(JOBS.TRANSCRIBE_POLL, data, { delaySeconds });
+export const enqueueAnalyse = (data: AnalyseJob) => getJobQueue().enqueue(JOBS.ANALYSE, data, { retryLimit: 1, expireInSeconds: 60 * 30 });
+export const enqueueAppraisal = (data: AppraisalJob) => getJobQueue().enqueue(JOBS.APPRAISAL_GENERATE, data, { retryLimit: 1 });

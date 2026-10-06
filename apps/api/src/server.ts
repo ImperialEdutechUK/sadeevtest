@@ -4,7 +4,7 @@ import { logger } from './logger.js';
 import { buildApp } from './app.js';
 import { prisma } from './db.js';
 import { startWorkers } from './jobs/handlers.js';
-import { stopBoss } from './jobs/queue.js';
+import { stopJobQueue } from './jobs/queue.js';
 import { ensurePresetRubrics } from './services/rubrics.service.js';
 
 async function main() {
@@ -19,16 +19,16 @@ async function main() {
   await ensurePresetRubrics(null);
 
   const app = await buildApp();
-  if (cfg.RUN_WORKER_IN_API) await startWorkers();
+  if (cfg.RUN_WORKER_IN_API && cfg.JOB_QUEUE === 'pgboss') await startWorkers();
 
   await app.listen({ port: cfg.PORT, host: cfg.HOST });
-  logger.info({ port: cfg.PORT, env: cfg.NODE_ENV, storage: cfg.STORAGE_PROVIDER, transcription: cfg.TRANSCRIPTION_PROVIDER, llm: cfg.LLM_PROVIDER }, 'Meeting Review API ready');
+  logger.info({ port: cfg.PORT, env: cfg.NODE_ENV, storage: cfg.STORAGE_PROVIDER, transcription: cfg.TRANSCRIPTION_PROVIDER, llm: cfg.LLM_PROVIDER, jobs: cfg.JOB_QUEUE }, 'Meeting Review API ready');
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'shutting down');
     try {
       await app.close();
-      await stopBoss();
+      await stopJobQueue();
       await prisma.$disconnect();
     } finally {
       process.exit(0);

@@ -45,8 +45,16 @@ const EnvSchema = z.object({
   SEED_DEMO_DATA: bool.default(true),
 
   RUN_WORKER_IN_API: bool.default(true),
+
+  // Background job transport: pg-boss (PostgreSQL, long-running processes) or SQS (serverless / Lambda)
+  JOB_QUEUE: z.enum(['pgboss', 'sqs']).default('pgboss'),
+  SQS_QUEUE_URL: z.string().default(''),
+  SQS_REGION: z.string().default('eu-west-2'),
   RUN_MIGRATIONS_ON_START: bool.default(false),
   TRUST_PROXY: bool.default(true),
+  // When set, every request must carry this value in the X-Origin-Verify header (added by CloudFront), so the
+  // origin cannot be reached directly. Leave empty for local development.
+  ORIGIN_VERIFY_SECRET: z.string().default(''),
 });
 
 export type Config = z.infer<typeof EnvSchema>;
@@ -64,6 +72,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (cfg.STORAGE_PROVIDER === 's3' && !cfg.S3_BUCKET) throw new Error('S3_BUCKET is required when STORAGE_PROVIDER=s3');
   if (cfg.TRANSCRIPTION_PROVIDER === 'aws' && cfg.STORAGE_PROVIDER !== 's3')
     throw new Error('TRANSCRIPTION_PROVIDER=aws requires STORAGE_PROVIDER=s3 (Amazon Transcribe reads from S3)');
+  if (cfg.JOB_QUEUE === 'sqs' && !cfg.SQS_QUEUE_URL) throw new Error('SQS_QUEUE_URL is required when JOB_QUEUE=sqs');
   if (cfg.LLM_PROVIDER === 'openrouter' && !cfg.OPENROUTER_API_KEY)
     throw new Error('OPENROUTER_API_KEY is required when LLM_PROVIDER=openrouter');
   cached = cfg;

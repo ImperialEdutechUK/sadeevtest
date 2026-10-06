@@ -2,14 +2,14 @@
 import { logger } from './logger.js';
 import { prisma } from './db.js';
 import { startWorkers } from './jobs/handlers.js';
-import { stopBoss } from './jobs/queue.js';
+import { stopJobQueue } from './jobs/queue.js';
 
 async function main() {
   await prisma.$connect();
   await startWorkers();
   logger.info('Meeting Review worker ready');
   const shutdown = async () => {
-    await stopBoss();
+    await stopJobQueue();
     await prisma.$disconnect();
     process.exit(0);
   };

@@ -25,3 +25,6 @@ test-results/
 
 # TypeScript incremental build state
 *.tsbuildinfo
+
+# Lambda bundles
+apps/api/lambda-dist/

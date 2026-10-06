@@ -79,9 +79,16 @@ Any chat model listed on OpenRouter can be used; the model name is also editable
 
 ## Deploying to AWS
 
-Everything is described step by step in [docs/deployment-aws.md](docs/deployment-aws.md) and [infra/terraform/README.md](infra/terraform/README.md). In short: `terraform apply` creates the infrastructure (London region by default), the GitHub Actions workflows build and ship the web app to S3/CloudFront and the API image to ECR/ECS, and a one-off ECS task runs the seed. The web app and API are served from the same domain (CloudFront routes `/api/*` to the API), so there is no cross-site cookie configuration to get wrong.
+Two deployment profiles are provided. Both serve the web app from S3 + CloudFront and keep the API on the same domain (CloudFront routes `/api/*` to the backend), so there is no cross-site cookie configuration.
 
-The API is a standard container and the web app is static files, so both can equally run on another cloud, on-premise with Docker, or behind an existing reverse proxy.
+| Profile | Backend | Fixed monthly hosting cost | When to choose |
+|---|---|---|---|
+| **Pay-per-request** (`infra/terraform-serverless`) | Lambda (API, worker, nightly job) + SQS; no load balancer, NAT gateway or always-on server | Cents at this scale: Lambda, SQS, S3 and CloudFront all have permanent free tiers and bill per request. The database is either an external managed Postgres (free tiers exist in London) or Aurora Serverless v2 scaling to zero. | Default for the college: low, bursty internal traffic. |
+| **Always-on container** (`infra/terraform`) | ECS Fargate behind an Application Load Balancer, RDS PostgreSQL, NAT gateway | Tens of pounds a month before any use (hourly-billed resources) | Larger or constant load, or when a private-network database is required. |
+
+Per-meeting usage costs are the same in both profiles and dominate the bill: Amazon Transcribe is charged per minute of audio (uploading a Teams transcript instead of a recording avoids it entirely) and OpenRouter is charged per token. See [docs/hosting-costs.md](docs/hosting-costs.md) for sourced prices and worked examples, [docs/deployment-aws.md](docs/deployment-aws.md) for the step-by-step guides, and the Terraform READMEs in each `infra/` folder.
+
+The API is also a standard container (`apps/api/Dockerfile`) and the web app is static files, so both can equally run on another cloud, on-premise with Docker, or behind an existing reverse proxy.
 
 ## Commands
 
@@ -92,7 +99,8 @@ pnpm typecheck    # TypeScript across the monorepo
 pnpm test         # vitest (scoring, transcript parsers, document extraction, mock reviewer)
 pnpm db:migrate   # apply migrations (prisma migrate deploy)
 pnpm db:seed      # idempotent seed
-pnpm --filter @slc/api worker   # run the background worker separately (set RUN_WORKER_IN_API=false on the API)
+pnpm --filter @slc/api worker        # run the background worker separately (set RUN_WORKER_IN_API=false on the API)
+pnpm --filter @slc/api build:lambda  # bundle the API, worker and nightly job for AWS Lambda into apps/api/lambda-dist
 ```
 
 OpenAPI documentation is served at `http://localhost:4000/api/docs` outside production.
