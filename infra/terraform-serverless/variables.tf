@@ -201,7 +201,7 @@ variable "aurora_engine_version" {
 }
 
 variable "aurora_min_capacity" {
-  description = "Minimum ACUs (aurora mode). 0 lets the cluster pause completely when idle; 0.5 keeps it always on (about USD 0.14/hour in London, i.e. no longer 'cents')."
+  description = "Minimum ACUs (aurora mode). 0 lets the cluster pause completely when idle; 0.5 keeps it always on (0.5 ACU x USD 0.14 per ACU-hour = about USD 0.07/hour, roughly USD 51/month in London, i.e. no longer 'cents')."
   type        = number
   default     = 0
 }

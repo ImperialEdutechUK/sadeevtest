@@ -58,16 +58,20 @@ for `eu-west-2`; the shape of the bill is:
 | EventBridge Scheduler | 14 M invocations free | USD 0 |
 | SSM Parameter Store (standard) | free | USD 0 |
 | ACM certificate | free | USD 0 |
-| CloudWatch Logs | 5 GB ingested free, then USD 0.57/GB; 14-day retention | USD 0 to cents |
+| CloudWatch Logs | 5 GB ingested free, then USD 0.5985/GB; 14-day retention | USD 0 to cents |
 | SES | USD 0.10 per 1,000 emails | cents |
 | Route 53 | USD 0.40/M queries **if** you point an existing zone here; no zone is created | cents |
-| Amazon Transcribe | USD 0.024 per audio minute (usage) | depends on meetings processed |
-| Aurora Serverless v2 (optional) | USD 0 compute while paused; about USD 0.14/ACU-hour while active (min 0.5 ACU); storage about USD 0.11/GB-month; I/O USD 0.22/M | cents if used sparingly; **about USD 12 per 170 active hours** - the one item that can turn cents into pounds |
+| Amazon Transcribe | USD 0.0001 per second of audio (USD 0.006/minute) in the London price list; older guides quote USD 0.024/minute - confirm on the first bill | depends on meetings processed; USD 0 when a Teams transcript is uploaded instead of a recording |
+| Aurora Serverless v2 (optional) | USD 0 compute while paused; USD 0.14/ACU-hour while active (min 0.5 ACU => about USD 0.07/hour); storage USD 0.10/GB-month; I/O USD 0.20/M; **plus USD 0.005/hour (USD 3.65/month) for the public IPv4 address of the publicly accessible instance, charged even while paused** | **dollars, not cents**: about USD 3.85 idle, about USD 18 if awake during office hours, about USD 55 if something keeps it awake around the clock |
 | External Postgres (default) | provider's free tier, e.g. a managed Postgres with a London region | USD 0 |
 
-Idle, the stack costs well under a dollar a month. Keep `database_mode = "external"`
-with a free-tier provider if the budget really is cents; choose Aurora when you
-want everything inside the AWS account and accept paying for active hours.
+Idle in `external` mode, the stack costs well under a dollar a month. The
+"cents" promise holds only in `external` mode: Aurora mode adds a fixed public
+IPv4 charge of about USD 3.65/month before any usage. Keep
+`database_mode = "external"` with a free-tier provider if the budget really is
+cents; choose Aurora when you want everything inside the AWS account and accept
+a few dollars a month plus active hours. Full arithmetic and the sources for
+every price are in `docs/hosting-costs.md`.
 
 ## Prerequisites
 
@@ -196,18 +200,20 @@ directly. Configure GitHub -> Settings -> Secrets and variables -> Actions:
   - `DATABASE_URL` = the database connection string (the *direct*, non-pooled
     URL if your provider distinguishes them). In Aurora mode read it with
     `aws ssm get-parameter --with-decryption --name /meeting-review/prod/DATABASE_URL --query Parameter.Value --output text`.
+  - `SEED_ADMIN_EMAIL` = e-mail address of the first system administrator (only needed when seeding)
   - `SEED_ADMIN_PASSWORD` = initial password of the first administrator (change it after the first login)
 - **Variables** = every key/value from output `github_variables`
-  (`AWS_REGION`, `WEB_BUCKET_NAME`, `CLOUDFRONT_DISTRIBUTION_ID`,
-  `LAMBDA_API_FUNCTION`, `LAMBDA_WORKER_FUNCTION`, `LAMBDA_SCHEDULED_FUNCTION`,
-  `VITE_API_BASE_URL=/api`), plus `SEED_ADMIN_EMAIL`, and optionally
-  `VITE_APP_NAME`, `VITE_COLLEGE_NAME`, `VITE_LOGO_URL`, `SEED_DEMO_DATA`.
+  (`AWS_REGION`, `WEB_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`,
+  `LAMBDA_API_NAME`, `LAMBDA_WORKER_NAME`, `LAMBDA_SCHEDULED_NAME`), and
+  optionally `VITE_APP_NAME`, `VITE_COLLEGE_NAME`, `VITE_LOGO_URL`,
+  `SEED_DEMO_DATA`. `VITE_API_BASE_URL` is not a variable: the workflow always
+  builds the SPA with `/api`, because CloudFront routes that path to the API.
 
 Then run the serverless deploy workflow (Actions tab -> *Run workflow*). It:
 
 1. `pnpm install --frozen-lockfile`
 2. `DATABASE_URL=... pnpm --filter @slc/api db:migrate` (Prisma `migrate deploy`)
-3. First run only (manual input or a `SEED` flag): `pnpm --filter @slc/api db:seed`
+3. First run only (*Run workflow* with the `run_seed` tick box): `pnpm --filter @slc/api db:seed`
    with `DATABASE_URL`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_DEMO_DATA`
 4. `pnpm --filter @slc/api build:lambda`, zips `apps/api/lambda-dist/` and runs
    `aws lambda update-function-code --function-name <each function> --zip-file fileb://lambda-dist.zip`
@@ -284,6 +290,12 @@ log in with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`. Change the password.
   7-day backups and deletion protection. The endpoint is discoverable but not
   usable without the password. If that does not fit your DPIA, use external
   mode with a provider offering private networking, or the container stack.
+- **Fixed cost, stated plainly.** A publicly accessible instance holds a public
+  IPv4 address, which AWS bills at USD 0.005/hour (about USD 3.65/month) for as
+  long as the instance exists, including while the cluster is paused at 0 ACU.
+  There is no cheaper layout within this design: Lambda functions outside a VPC
+  reach the database over IPv4 only, and the private alternatives (NAT gateway,
+  interface endpoints, RDS Proxy) each cost more per month than the address.
 - **Scale to zero.** `aurora_min_capacity = 0` with
   `aurora_seconds_until_auto_pause = 300` pauses the cluster after five idle
   minutes; the next request waits roughly 15 seconds while it resumes (the API

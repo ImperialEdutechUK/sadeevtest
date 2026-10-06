@@ -109,12 +109,11 @@ output "github_variables" {
   description = "Values for the GitHub repository variables used by the serverless deploy workflow"
   value = {
     AWS_REGION                 = var.aws_region
-    WEB_BUCKET_NAME            = aws_s3_bucket.web.bucket
+    WEB_BUCKET                 = aws_s3_bucket.web.bucket
     CLOUDFRONT_DISTRIBUTION_ID = aws_cloudfront_distribution.web.id
-    LAMBDA_API_FUNCTION        = aws_lambda_function.api.function_name
-    LAMBDA_WORKER_FUNCTION     = aws_lambda_function.worker.function_name
-    LAMBDA_SCHEDULED_FUNCTION  = aws_lambda_function.scheduled.function_name
-    VITE_API_BASE_URL          = "/api"
+    LAMBDA_API_NAME            = aws_lambda_function.api.function_name
+    LAMBDA_WORKER_NAME         = aws_lambda_function.worker.function_name
+    LAMBDA_SCHEDULED_NAME      = aws_lambda_function.scheduled.function_name
   }
 }
 

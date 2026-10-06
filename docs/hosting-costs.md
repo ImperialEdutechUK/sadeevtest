@@ -388,7 +388,7 @@ exception) after any change.
 | NAT gateway | $0.05 per hour + $0.05 per GB | **$36.50** + data | The three Lambdas have no `vpc_config`, so they reach SQS, S3, Transcribe, SES, SSM and OpenRouter over the public AWS endpoints and the internet; in Aurora mode the cluster sits in public subnets so nothing private needs a route out | `grep -r -e aws_nat_gateway -e vpc_config infra/terraform-serverless` returns nothing |
 | Application Load Balancer | $0.02646 per hour + $0.0084 per LCU-hour + 2 public IPv4 at $0.005 per hour | **$26.6+** | CloudFront calls the API Lambda's function URL directly as a custom origin, with `X-Origin-Verify` instead of an IAM-signed origin | `grep -r aws_lb infra/terraform-serverless` returns nothing |
 | ECS/Fargate task, EC2 instance | $0.04656 per vCPU-hour, $0.00511 per GB-hour (Fargate x86) | **$20.72** for 0.5 vCPU/1 GB | Lambda only | `grep -r -e aws_ecs -e aws_instance infra/terraform-serverless` returns nothing |
-| RDS instance | $0.018 per hour for `db.t4g.micro` + $0.133 per GB-month gp3 | **$15.80** | `external` database, or Aurora Serverless v2 with `min_capacity = 0` | `grep -r aws_db_instance infra/terraform-serverless` returns only the Serverless v2 instance (`instance_class = "db.serverless"`) guarded by `database_mode` |
+| RDS instance | $0.018 per hour for `db.t4g.micro` + $0.133 per GB-month gp3 | **$15.80** | `external` database, or Aurora Serverless v2 with `min_capacity = 0` | `grep -r -e aws_db_instance -e aws_rds_cluster_instance infra/terraform-serverless` returns only the `aws_rds_cluster_instance` with `instance_class = "db.serverless"` guarded by `database_mode` |
 | Aurora kept awake or I/O-Optimized | $0.14 per ACU-hour ($0.19 I/O-Optimized) | **$51** at 0.5 ACU around the clock | `min_capacity = 0`, `max_capacity = 1`, Aurora Standard storage type, no Performance Insights or Enhanced Monitoring (which also generate CloudWatch Logs charges) | `grep -r -e min_capacity -e storage_type -e performance_insights -e monitoring_interval infra/terraform-serverless` shows 0, standard/absent, false/absent, 0/absent |
 | Public IPv4 addresses | $0.005 per address-hour | **$3.65 each** | None in `external` mode (no VPC at all). One in Aurora mode, unavoidable for a publicly accessible instance; it is the reason Aurora mode is "a few dollars", not "cents" | `grep -r aws_eip infra/terraform-serverless` returns nothing |
 | VPC interface endpoints (PrivateLink) | $0.011 per endpoint-hour per AZ + $0.01 per GB | **$8.03 per endpoint per AZ** (Transcribe, SES, SQS, SSM, Logs in two AZs would be about $80) | Lambdas are outside the VPC; nothing needs private connectivity | `grep -r aws_vpc_endpoint infra/terraform-serverless` returns nothing (the container profile's S3 *gateway* endpoint is free, but is not needed here either) |
@@ -405,8 +405,9 @@ exception) after any change.
 | Transcribe and SES add-ons | PII redaction $0.00004 per second; SES dedicated IPs, Virtual Deliverability Manager | Per use | Not used by the application | n/a |
 
 Two free settings reduce the *variable* risk rather than the fixed cost:
-reserved concurrency on the worker (for example 5) caps how many Transcribe
-and OpenRouter calls can run at once, and the dead-letter queue with
+the SQS event source mapping's maximum concurrency on the worker
+(`worker_max_concurrency`, default 5) caps how many Transcribe and OpenRouter
+calls can run at once, and the dead-letter queue with
 `maxReceiveCount = 3` bounds retries so a failing job cannot loop and bill
 Transcribe three hundred times overnight.
 

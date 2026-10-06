@@ -18,10 +18,15 @@
 #   "external" with a provider that offers private networking, or the container
 #   stack in ../terraform.
 #
-# Cost: USD 0 compute while paused (0 ACU); about USD 0.14 per ACU-hour while
-# active (minimum 0.5 ACU => roughly USD 0.07/hour of use), storage about
-# USD 0.11/GB-month, I/O USD 0.22 per million requests. The first request after a
-# pause waits roughly 15 seconds for the resume.
+# Cost (London, verified against the AWS price list on 2026-10-06, see
+# docs/hosting-costs.md): USD 0 compute while paused (0 ACU); USD 0.14 per
+# ACU-hour while active (minimum 0.5 ACU => USD 0.07/hour of use), storage
+# USD 0.10/GB-month, I/O USD 0.20 per million requests, PLUS a fixed
+# USD 0.005/hour (about USD 3.65/month) for the public IPv4 address attached to
+# the publicly accessible instance, charged even while the cluster is paused.
+# Aurora mode is therefore "a few dollars a month", not "cents"; only
+# database_mode = "external" keeps the fixed hosting cost in cents. The first
+# request after a pause waits roughly 15 seconds for the resume.
 # ---------------------------------------------------------------------------
 
 locals {
