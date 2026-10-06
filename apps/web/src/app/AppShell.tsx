@@ -29,6 +29,7 @@ const NAV: NavItem[] = [
 
 const APP_NAME = (import.meta.env.VITE_APP_NAME as string | undefined) ?? 'Meeting Review';
 const COLLEGE = (import.meta.env.VITE_COLLEGE_NAME as string | undefined) ?? 'South London College';
+const LOGO_URL = (import.meta.env.VITE_LOGO_URL as string | undefined) ?? '/slc-logo.png';
 
 export function AppShell() {
   const { user, can, logout } = useAuth();
@@ -112,16 +113,14 @@ export function AppShell() {
 
 function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-3 px-5 py-5">
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent-500 text-white">
-        <svg viewBox="0 0 32 32" className="h-5 w-5" aria-hidden>
-          <path d="M8 20l5-6 4 4 7-9" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </span>
-      <span>
-        <span className="block text-base font-semibold leading-tight">{APP_NAME}</span>
-        <span className="block text-[11px] text-brand-200">Quality review for learner meetings</span>
-      </span>
+    <Link to="/" className="block px-4 pt-4 pb-3">
+      {LOGO_URL ? (
+        <span className="flex items-center justify-center rounded-xl bg-white px-3 py-2">
+          <img src={LOGO_URL} alt={COLLEGE} className="h-10 w-auto object-contain" />
+        </span>
+      ) : null}
+      <span className="mt-2.5 block text-base font-semibold leading-tight text-white">{APP_NAME}</span>
+      <span className="block text-[11px] text-brand-200">Quality review for learner meetings</span>
     </Link>
   );
 }

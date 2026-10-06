@@ -11,17 +11,18 @@ import { mutations } from '@/lib/queries';
 
 const APP_NAME = (import.meta.env.VITE_APP_NAME as string | undefined) ?? 'Meeting Review';
 const COLLEGE = (import.meta.env.VITE_COLLEGE_NAME as string | undefined) ?? 'South London College';
+const LOGO_URL = (import.meta.env.VITE_LOGO_URL as string | undefined) ?? '/slc-logo.png';
 
 function AuthLayout({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-brand-800 lg:flex-row">
       <div className="flex flex-1 flex-col justify-between p-8 text-white lg:p-14">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-accent-500">
-            <svg viewBox="0 0 32 32" className="h-6 w-6" aria-hidden>
-              <path d="M8 20l5-6 4 4 7-9" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
+        <div className="flex items-center gap-4">
+          {LOGO_URL ? (
+            <span className="inline-flex items-center rounded-xl bg-white px-3 py-2">
+              <img src={LOGO_URL} alt={COLLEGE} className="h-11 w-auto object-contain" />
+            </span>
+          ) : null}
           <div>
             <p className="text-lg font-semibold">{APP_NAME}</p>
             <p className="text-xs text-brand-200">{COLLEGE}</p>

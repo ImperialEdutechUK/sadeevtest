@@ -7,7 +7,7 @@ export function HelpTip({ children, label = 'What does this mean?' }: { children
   return (
     <Tooltip.Root delayDuration={150}>
       <Tooltip.Trigger asChild>
-        <button type="button" aria-label={label} className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:text-brand-600 focus-visible:text-brand-600">
+        <button type="button" aria-label={label} className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:text-brand-700 focus-visible:text-brand-700">
           <HelpCircle className="h-4 w-4" />
         </button>
       </Tooltip.Trigger>

@@ -13,7 +13,7 @@ export function PageHeader({ title, description, actions, breadcrumb, eyebrow }:
             &larr; {breadcrumb.label}
           </Link>
         )}
-        {eyebrow && <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-600">{eyebrow}</div>}
+        {eyebrow && <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-700">{eyebrow}</div>}
         <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">{title}</h1>
         {description && <p className="mt-1 max-w-3xl text-sm text-slate-500 sm:text-base">{description}</p>}
       </div>
@@ -29,7 +29,7 @@ export function Skeleton({ className }: { className?: string }) {
 export function EmptyState({ icon: Icon = Inbox, title, description, action }: { icon?: LucideIcon; title: ReactNode; description?: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-      <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+      <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-700">
         <Icon className="h-6 w-6" />
       </span>
       <h3 className="text-base font-semibold text-slate-900">{title}</h3>

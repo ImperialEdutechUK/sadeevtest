@@ -87,7 +87,7 @@ export function HelpPage() {
         {FAQ.map((f) => (
           <details key={f.q} className="card group px-5 py-4">
             <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900 marker:content-none">
-              <span className="mr-2 inline-block text-brand-600 transition-transform group-open:rotate-90">&#9656;</span>
+              <span className="mr-2 inline-block text-brand-700 transition-transform group-open:rotate-90">&#9656;</span>
               {f.q}
             </summary>
             <div className="mt-3 pl-5 text-sm leading-relaxed text-slate-700">{f.a}</div>

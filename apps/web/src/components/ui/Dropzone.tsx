@@ -105,7 +105,7 @@ export function Dropzone({
           </div>
         ) : (
           <>
-            <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+            <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-700">
               {over ? <UploadCloud className="h-6 w-6" /> : <Icon className="h-6 w-6" />}
             </span>
             <p className="text-sm font-semibold text-slate-900">

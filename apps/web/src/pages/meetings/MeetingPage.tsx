@@ -133,7 +133,7 @@ export function MeetingPage() {
 
 function ProcessingCard({ m }: { m: MeetingDetail }) {
   const icon = (s: ProcessingStep['state']) =>
-    s === 'done' ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : s === 'active' ? <Loader2 className="h-5 w-5 animate-spin text-brand-600" /> : s === 'failed' ? <XCircle className="h-5 w-5 text-rose-600" /> : s === 'skipped' ? <Circle className="h-5 w-5 text-slate-300" /> : <Circle className="h-5 w-5 text-slate-300" />;
+    s === 'done' ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : s === 'active' ? <Loader2 className="h-5 w-5 animate-spin text-brand-700" /> : s === 'failed' ? <XCircle className="h-5 w-5 text-rose-600" /> : s === 'skipped' ? <Circle className="h-5 w-5 text-slate-300" /> : <Circle className="h-5 w-5 text-slate-300" />;
   return (
     <Card className="mb-6">
       <CardHeader title={m.status === 'FAILED' ? 'What happened' : 'Your report is being prepared'} description={m.status === 'FAILED' ? undefined : 'You can close this page - we will notify you when it is ready.'} />

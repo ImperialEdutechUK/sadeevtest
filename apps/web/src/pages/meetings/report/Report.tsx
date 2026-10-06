@@ -116,7 +116,7 @@ export function Report({ meeting, onChanged }: { meeting: MeetingDetail; onChang
 
       {a.actionPlan.length > 0 && (
         <Card>
-          <CardHeader title={<span className="flex items-center gap-2"><Flag className="h-5 w-5 text-brand-600" /> Action plan</span>} description="Small, concrete steps for the next meeting" />
+          <CardHeader title={<span className="flex items-center gap-2"><Flag className="h-5 w-5 text-brand-700" /> Action plan</span>} description="Small, concrete steps for the next meeting" />
           <ul className="divide-y divide-slate-100">
             {a.actionPlan.map((item, i) => (
               <li key={i} className="flex items-start gap-3 px-5 py-3">
@@ -133,7 +133,7 @@ export function Report({ meeting, onChanged }: { meeting: MeetingDetail; onChang
 
       {a.learnerExperience && (
         <Card>
-          <CardHeader title={<span className="flex items-center gap-2"><UserRound className="h-5 w-5 text-brand-600" /> From the learner&rsquo;s point of view</span>} />
+          <CardHeader title={<span className="flex items-center gap-2"><UserRound className="h-5 w-5 text-brand-700" /> From the learner&rsquo;s point of view</span>} />
           <CardBody><p className="text-sm leading-relaxed text-slate-800">{a.learnerExperience}</p></CardBody>
         </Card>
       )}
@@ -384,7 +384,7 @@ function HowScored({ analysis: a, meeting }: { analysis: Analysis; meeting: Meet
       </Alert>
 
       <Card>
-        <CardHeader title={<span className="flex items-center gap-2"><Calculator className="h-5 w-5 text-brand-600" /> The calculation</span>} />
+        <CardHeader title={<span className="flex items-center gap-2"><Calculator className="h-5 w-5 text-brand-700" /> The calculation</span>} />
         <CardBody className="space-y-3 text-sm text-slate-800">
           <p>
             Overall score = (sum of <em>score &times; weight</em>) &divide; (sum of <em>5 &times; weight</em>) &times; 100, over the {result.applicableCount} applicable criteria.
@@ -418,7 +418,7 @@ function HowScored({ analysis: a, meeting }: { analysis: Analysis; meeting: Meet
                 const r = result.rows.find((x) => x.criterionId === c.criterionId)!;
                 return (
                   <tr key={c.id} className={cn(c.notApplicable && 'text-slate-400')}>
-                    <td className="px-4 py-2">{c.code} {c.title}{c.isMandatory && <span className="ml-1 text-xs text-brand-600">(essential)</span>}</td>
+                    <td className="px-4 py-2">{c.code} {c.title}{c.isMandatory && <span className="ml-1 text-xs text-brand-700">(essential)</span>}</td>
                     <td className="px-4 py-2">{c.weight}</td>
                     <td className="px-4 py-2">{c.notApplicable ? 'n/a' : c.effectiveScore}{c.moderatedScore !== null && <span className="text-xs text-slate-500"> (AI: {c.score})</span>}</td>
                     <td className="px-4 py-2">{r.weightedPoints}</td>
