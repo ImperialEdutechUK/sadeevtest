@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# Copy to terraform.tfvars (git-ignored) and replace the placeholders.
+# ---------------------------------------------------------------------------
+
+# --- Naming and region ---
+project_name = "meeting-review"
+environment  = "prod"
+aws_region   = "eu-west-2"
+tags = {
+  Owner      = "IT Services"
+  CostCentre = "replace-me"
+}
+
+# --- Domains and certificates ---
+domain_name     = "meetingreview.example.ac.uk"
+api_domain_name = "" # e.g. "api.meetingreview.example.ac.uk" for direct API access; empty = CloudFront only
+
+# Certificate in us-east-1 covering domain_name (CloudFront)
+acm_certificate_arn_us_east_1 = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+# Certificate in aws_region covering domain_name AND api_domain_name if set (ALB)
+acm_certificate_arn_regional = "arn:aws:acm:eu-west-2:123456789012:certificate/11111111-1111-1111-1111-111111111111"
+
+# Route 53 hosted zone for the domain(s). Empty = manage DNS yourself (see outputs).
+route53_zone_id = "Z0123456789ABCDEFGHIJ"
+
+# Reject requests that reach the ALB without going through CloudFront
+enforce_cloudfront_origin = true
+
+# --- GitHub Actions ---
+github_repository           = "your-org/meeting-review"
+github_deploy_branch        = "main"
+create_github_oidc_provider = true
+
+# --- Database ---
+db_instance_class        = "db.t4g.micro"
+db_allocated_storage     = 20
+db_max_allocated_storage = 100
+db_engine_version        = "16"
+db_name                  = "meeting_review"
+db_username              = "meeting_review"
+db_multi_az              = false
+db_connection_options    = "sslmode=require"
+
+# --- API service ---
+api_cpu            = 512
+api_memory         = 1024
+api_desired_count  = 1
+api_image_tag      = "latest"
+log_level          = "info"
+log_retention_days = 30
+
+# --- Application ---
+openrouter_model         = "anthropic/claude-sonnet-5.5"
+transcribe_language      = "en-GB"
+email_from               = "Meeting Review <no-reply@example.ac.uk>"
+seed_admin_email         = "it.admin@example.ac.uk"
+seed_demo_data           = false
+recording_retention_days = 90

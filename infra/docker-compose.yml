@@ -1,0 +1,160 @@
+# ---------------------------------------------------------------------------
+# Meeting Review - local development stack
+#
+# Usage (from the repository root):
+#   cp infra/.env.compose.example infra/.env.compose     # then edit (OpenRouter key etc.)
+#   docker compose -f infra/docker-compose.yml up --build
+#
+#   Web app ........ http://localhost:8080
+#   API ............ http://localhost:4000/api/health
+#   MinIO console .. http://localhost:9001  (minioadmin / minioadmin)
+#   Postgres ....... localhost:5432        (postgres / postgres, db meeting_review)
+#
+# Seed the first admin + demo data once the api container is healthy:
+#   docker compose -f infra/docker-compose.yml exec api node dist/seed/seed.js
+#
+# IMPORTANT - browser uploads go straight to MinIO using presigned URLs that
+# the API generates against S3_ENDPOINT (http://minio:9000). Your browser must
+# be able to resolve the hostname "minio", so add this line to your hosts file
+# (/etc/hosts on macOS/Linux, C:\Windows\System32\drivers\etc\hosts on Windows):
+#   127.0.0.1 minio
+# ---------------------------------------------------------------------------
+name: meeting-review
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: meeting_review
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d meeting_review"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      # CORS for presigned browser uploads (web container and the Vite dev server)
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:8080,http://localhost:5173"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  # One-shot job: create the uploads bucket and make sure it is private.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing local/meeting-review-uploads
+        mc anonymous set none local/meeting-review-uploads
+        echo "MinIO bucket meeting-review-uploads is ready (private, CORS via MINIO_API_CORS_ALLOW_ORIGIN)"
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    # Secrets and tunable settings (OpenRouter key, LLM provider, seed admin...) live in
+    # infra/.env.compose - copy infra/.env.compose.example to get started.
+    env_file:
+      - path: .env.compose
+        required: false
+    # Fixed wiring for the local stack. Anything listed here overrides the env_file.
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      WEB_ORIGIN: http://localhost:8080
+      API_PUBLIC_URL: http://localhost:8080/api
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/meeting_review
+      # Dev-only secrets - never reuse these values outside this compose stack.
+      JWT_SECRET: local-dev-only-jwt-secret-0123456789abcdefghijklmnopqrstuvwxyz
+      COOKIE_SECRET: local-dev-only-cookie-secret-zyxwvutsrqponmlkjihgfedcba9876543210
+      # Object storage -> MinIO
+      STORAGE_PROVIDER: s3
+      S3_BUCKET: meeting-review-uploads
+      S3_REGION: eu-west-2
+      S3_ENDPOINT: http://minio:9000
+      S3_FORCE_PATH_STYLE: "true"
+      AWS_REGION: eu-west-2
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      # No AWS services locally
+      TRANSCRIPTION_PROVIDER: mock
+      TRANSCRIBE_REGION: eu-west-2
+      TRANSCRIBE_LANGUAGE: en-GB
+      EMAIL_PROVIDER: none
+      # Run jobs in-process and apply Prisma migrations on boot
+      RUN_WORKER_IN_API: "true"
+      RUN_MIGRATIONS_ON_START: "true"
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      # 127.0.0.1 rather than localhost: Node may resolve localhost to ::1 while the server binds IPv4 only.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Same-origin: nginx in the web image proxies /api/ to the api service.
+        VITE_API_BASE_URL: /api
+        VITE_APP_NAME: Meeting Review
+        VITE_COLLEGE_NAME: South London College
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # Works with both alpine (busybox wget) and debian (curl) based images.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || curl -fsS http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  minio-data:

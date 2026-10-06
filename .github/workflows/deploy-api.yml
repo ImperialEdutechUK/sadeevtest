@@ -1,0 +1,127 @@
+# ---------------------------------------------------------------------------
+# Deploy API - build the API image, push it to ECR and roll it out on ECS.
+#
+# Required GitHub secrets:
+#   AWS_DEPLOY_ROLE_ARN    IAM role assumed via OIDC (terraform output github_deploy_role_arn)
+#
+# Optional GitHub variables (defaults match the Terraform defaults
+# project_name = "meeting-review", environment = "prod"; see terraform output github_variables):
+#   AWS_REGION             default eu-west-2
+#   ECR_REPOSITORY         default meeting-review-prod-api
+#   ECS_CLUSTER            default meeting-review-prod
+#   ECS_SERVICE            default meeting-review-prod-api
+#   ECS_TASK_FAMILY        default meeting-review-prod-api
+#
+# How a deploy works:
+#   1. Build apps/api/Dockerfile from the repo root and push :<git-sha> and :latest.
+#   2. Download the latest revision of the task definition family (Terraform owns
+#      environment variables, secrets and roles there).
+#   3. Replace the image of the "api" container with :<git-sha> and register it.
+#   4. Update the service and wait until the new tasks are healthy (ECS rolls back
+#      automatically via the deployment circuit breaker if they never become healthy).
+# ---------------------------------------------------------------------------
+name: Deploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "packages/shared/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-api.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC token for AWS
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-2' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'meeting-review-prod-api' }}
+  ECS_CLUSTER: ${{ vars.ECS_CLUSTER || 'meeting-review-prod' }}
+  ECS_SERVICE: ${{ vars.ECS_SERVICE || 'meeting-review-prod-api' }}
+  ECS_TASK_FAMILY: ${{ vars.ECS_TASK_FAMILY || 'meeting-review-prod-api' }}
+  CONTAINER_NAME: api
+
+jobs:
+  deploy:
+    name: Build, push and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check configuration
+        run: |
+          if [ -z "${{ secrets.AWS_DEPLOY_ROLE_ARN }}" ]; then
+            echo "::error::Secret AWS_DEPLOY_ROLE_ARN is not set"
+            exit 1
+          fi
+
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: github-deploy-api-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false # keep a single-manifest image so ECR shows one entry per tag
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "$ECS_TASK_FAMILY" \
+            --query taskDefinition \
+            --output json > task-definition.json
+
+      - name: Render task definition with the new image
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+
+      - name: Register task definition and update service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          service: ${{ env.ECS_SERVICE }}
+          wait-for-service-stability: true
+          wait-for-minutes: 15
+
+      - name: Summary
+        run: |
+          {
+            echo "### API deployed"
+            echo "- Image: \`${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}\`"
+            echo "- Service: \`$ECS_CLUSTER / $ECS_SERVICE\`"
+          } >> "$GITHUB_STEP_SUMMARY"
