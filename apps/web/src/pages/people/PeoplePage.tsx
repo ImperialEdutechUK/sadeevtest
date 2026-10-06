@@ -27,7 +27,7 @@ export function PeoplePage() {
       />
       <div className="card mb-4 grid gap-3 p-4 sm:grid-cols-3">
         <div className="relative sm:col-span-2">
-          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" aria-hidden />
+          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-500" aria-hidden />
           <Input aria-label="Search people" placeholder="Search by name or email" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select aria-label="Department" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>

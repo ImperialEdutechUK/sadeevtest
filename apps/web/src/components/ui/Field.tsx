@@ -16,7 +16,7 @@ export function Field({ label, hint, help, error, required, children, className,
   );
 }
 
-const base = 'w-full rounded-xl border border-slate-300 bg-white px-3.5 text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100 disabled:bg-slate-50 disabled:text-slate-500 aria-[invalid=true]:border-rose-400';
+const base = 'w-full rounded-xl border border-slate-300 bg-white px-3.5 text-slate-900 placeholder:text-slate-500 focus:border-brand-600 focus:ring-4 focus:ring-brand-200 disabled:bg-slate-50 disabled:text-slate-500 aria-[invalid=true]:border-rose-400';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...props }, ref) {
   return <input ref={ref} className={cn(base, 'h-11 text-sm', className)} {...props} />;

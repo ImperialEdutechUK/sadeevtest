@@ -250,7 +250,7 @@ export function NewMeetingPage() {
           <CardBody className="space-y-5">
             <div className="space-y-3">
               <Dropzone kind="RECORDING" title="Recording of the meeting" description="Video or audio from Teams, Zoom or a phone. We transcribe it for you." file={files.RECORDING ?? null} progress={progress.RECORDING ?? null} error={fileErrors.RECORDING} onFile={(f) => upload('RECORDING', f)} onRemove={() => remove('RECORDING')} required={!files.TRANSCRIPT} />
-              <p className="text-center text-xs font-medium uppercase tracking-wide text-slate-400">or</p>
+              <p className="text-center text-xs font-medium uppercase tracking-wide text-slate-500">or</p>
               <Dropzone kind="TRANSCRIPT" title="Transcript of the meeting" description="The .vtt or .docx transcript that Teams creates, or a .srt or .txt file." file={files.TRANSCRIPT ?? null} progress={progress.TRANSCRIPT ?? null} error={fileErrors.TRANSCRIPT} onFile={(f) => upload('TRANSCRIPT', f)} onRemove={() => remove('TRANSCRIPT')} required={!files.RECORDING} />
             </div>
             <div className="grid gap-3 border-t border-slate-100 pt-5 md:grid-cols-2">

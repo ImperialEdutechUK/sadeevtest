@@ -50,7 +50,7 @@ export function MeetingsPage() {
         }}
       >
         <div className="relative lg:col-span-2">
-          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" aria-hidden />
+          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-500" aria-hidden />
           <Input aria-label="Search meetings" placeholder="Search title, learner reference or tutor" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} onBlur={() => set('search', search)} />
         </div>
         <Select aria-label="Status" value={q.status ?? ''} onChange={(e) => set('status', e.target.value)}>

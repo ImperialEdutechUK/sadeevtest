@@ -295,3 +295,191 @@ Nothing in the application is tied to AWS beyond optional integrations:
 - `infra/docker-compose.yml` shows the whole stack running on a single machine
   with Postgres and MinIO and is a reasonable starting point for an on-premises
   deployment.
+
+## 16. Pay-per-request profile (cents per month)
+
+Sections 1-14 describe the **container profile** (`infra/terraform`): an
+always-on ECS service behind a load balancer, with RDS in private subnets and a
+NAT gateway. That design is robust but its fixed cost is tens of pounds a month
+before a single meeting is processed, because the NAT gateway, load balancer,
+RDS instance and Fargate task are billed per hour whether or not anyone uses
+the system.
+
+The **pay-per-request profile** in
+[`infra/terraform-serverless`](../infra/terraform-serverless/README.md) deploys
+the same application with no always-on infrastructure at all. Every service it
+uses is billed per request (Lambda, SQS, CloudFront, S3, Transcribe) or sits
+inside a permanent free tier (SSM Parameter Store, EventBridge Scheduler,
+CloudWatch Logs basics), so an idle deployment costs **cents per month** and a
+busy one costs what it actually uses. The full line-by-line breakdown, with
+the free-tier allowances and what happens when they are exceeded, is in
+[`docs/hosting-costs.md`](hosting-costs.md).
+
+```
+            ┌──────────────────────────── https://meetingreview.example.ac.uk ───────────────────────────┐
+            │                                                                                            │
+ Browser ───┤ CloudFront (CDN, TLS)                                                                      │
+            │   ├── /*       ──> S3 "web" bucket   (React SPA, static files)                             │
+            │   └── /api/*   ──> Lambda "api" (function URL, X-Origin-Verify) ──> PostgreSQL            │
+            │                        │                                             (external managed DB │
+            │                        ├──> SQS job queue ──> Lambda "worker" ──┐    or Aurora Serverless │
+            │                        │                        │               │    v2 scaling to zero)  │
+            │   EventBridge Scheduler (02:30 UTC) ──> Lambda "scheduled" ─────┤                         │
+            │                                                                 ├──> S3 "uploads" bucket  │
+            │                                                                 ├──> Amazon Transcribe    │
+            │                                                                 ├──> Amazon SES           │
+            │                                                                 └──> OpenRouter           │
+            └────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+What changes compared with the container profile:
+
+| Area | Container profile (`infra/terraform`) | Pay-per-request profile (`infra/terraform-serverless`) |
+| --- | --- | --- |
+| API | ECS Fargate task behind an ALB | Lambda function (`api.handler`, Node 22) with a function URL that only CloudFront calls; CloudFront adds `X-Origin-Verify`, the API answers 403 without it |
+| Background jobs | pg-boss inside the API process | SQS queue + dead-letter queue -> Lambda `worker.handler`; nightly retention sweep via EventBridge Scheduler -> Lambda `scheduled.handler` |
+| Database | RDS PostgreSQL in private subnets | `database_mode = "external"`: a managed Postgres you supply (e.g. a free-tier provider in London) reachable over TLS. `database_mode = "aurora_serverless_v2"`: Aurora PostgreSQL Serverless v2 scaling to **0 ACU** when idle, public endpoint protected by TLS (`rds.force_ssl=1`) and a long random password |
+| Network | VPC, NAT gateway, private subnets | None for the Lambdas (they run outside a VPC, so no NAT). Aurora mode adds a VPC with public subnets only |
+| Secrets | Secrets Manager (per-secret monthly fee) | SSM Parameter Store SecureString parameters under `/meeting-review/<env>/` (standard parameters are free) |
+| Migrations and seed | Run by the container on start / one-off ECS task | Run by the deploy workflow from GitHub Actions against the `DATABASE_URL` secret (the Prisma CLI is not bundled into Lambda) |
+| Logs | CloudWatch, 30-day retention | CloudWatch, 14-day retention |
+| Certificates | Two (us-east-1 for CloudFront, eu-west-2 for the ALB) | One (us-east-1 for CloudFront); the function URL uses an AWS-managed certificate |
+| Deploy | `Deploy API` + `Deploy Web` | One workflow, `Deploy (serverless)` |
+
+### Which profile to choose
+
+| Choose the **container profile** when ... | Choose the **pay-per-request profile** when ... |
+| --- | --- |
+| Predictable latency matters: no cold starts, the database is always warm | Cost is the deciding factor: a pilot, an evaluation, a small college or bursty use (busy a few hours a week) |
+| The database must not have an internet-facing endpoint (private subnets only) | A managed Postgres provider is acceptable, or a public Aurora endpoint protected by TLS and a long random password is acceptable (and the ~GBP 30+/month a NAT gateway would cost is not) |
+| The team already runs ECS and has a budget for a fixed monthly spend | Occasional cold starts are fine: roughly 1-3 s for the first API request after a quiet period, plus about 15 s if an Aurora cluster has to resume from 0 ACU (external databases with their own idle/resume behaviour are similar) |
+| Jobs may need to run for more than 15 minutes in one go | Each job finishes well inside Lambda's 15-minute limit. The application already fits: transcription is asynchronous (the worker starts an Amazon Transcribe job and re-queues a check every 30-60 s instead of waiting) and LLM calls time out after 3 minutes |
+
+Both profiles run exactly the same code and environment contract
+(`apps/api/.env.example`), so you can start on the pay-per-request profile and
+move to the container profile later: deploy the other stack, copy the database
+(`pg_dump` / `pg_restore`) and the uploads bucket, then switch DNS. Request and
+response bodies through the API are limited to 6 MB by the function URL; this
+does not affect recordings or documents, which the browser uploads and
+downloads directly from S3 through presigned URLs.
+
+Trade-off to state plainly to the data-protection lead: in Aurora mode the
+database has a public endpoint. It is protected by TLS (connections without it
+are refused), a 32+ character random password and deletion protection, and it
+scales to zero when unused. The alternative, a private database reachable only
+from inside a VPC, forces the Lambdas into the VPC and therefore needs a NAT
+gateway (or interface endpoints) for Transcribe, SES, SQS and OpenRouter, which
+alone costs more per month than everything else in this profile combined. The
+`external` mode has the same property: the managed provider's endpoint is
+public and TLS-protected.
+
+### The deploy workflow
+
+[`.github/workflows/deploy-serverless.yml`](../.github/workflows/deploy-serverless.yml)
+replaces both `Deploy API` and `Deploy Web`. It runs on every push to `main`
+that touches `apps/**`, `packages/**` or `infra/terraform-serverless/**`, and by
+hand from the *Actions* tab (*Run workflow*, with a `run_seed` tick box). One
+run does, in order:
+
+1. `pnpm install`, build `@slc/shared`, generate the Prisma client.
+2. `prisma migrate deploy` against the `DATABASE_URL` secret, retried for about
+   a minute so a database that is resuming from idle does not fail the deploy.
+3. Optionally the seed (`run_seed = true`): creates the first system
+   administrator from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`. Safe to re-run;
+   existing users are left alone.
+4. `pnpm --filter @slc/api build:lambda` (esbuild bundles `api.mjs`,
+   `worker.mjs`, `scheduled.mjs`), zip, `aws lambda update-function-code` on
+   the three functions and wait for each to report *Successful*. Terraform owns
+   the functions' memory, timeout and environment; the workflow only replaces code.
+5. `pnpm --filter @slc/web build` with `VITE_API_BASE_URL=/api`, sync to the web
+   bucket (hashed assets cached for a year, `index.html` never cached) and a
+   CloudFront invalidation.
+
+**Disable the workflows you are not using.** `Deploy API`, `Deploy Web` and
+`Deploy (serverless)` all trigger on pushes to `main`; in a repository that
+uses the pay-per-request profile, disable the first two (*Actions* -> the
+workflow -> "..." -> *Disable workflow*) so they do not fail looking for an ECS
+cluster that does not exist, and the other way round for the container profile.
+
+### GitHub secrets and variables for `Deploy (serverless)`
+
+GitHub -> repository -> *Settings* -> *Secrets and variables* -> *Actions*.
+`terraform output github_variables` in `infra/terraform-serverless` prints the
+variable values; `terraform output -raw github_deploy_role_arn` prints the role.
+
+**Secrets**
+
+| Name | Value | Needed |
+| --- | --- | --- |
+| `AWS_DEPLOY_ROLE_ARN` | OIDC deploy role created by Terraform (S3 sync, CloudFront invalidation and `lambda:UpdateFunctionCode` on the three functions only) | Always |
+| `DATABASE_URL` | The same connection string as the SSM parameter `/meeting-review/<env>/DATABASE_URL`, used to run migrations and the seed from the runner over TLS. External mode: the URL from your Postgres provider (append `?sslmode=require` if it is not already enforced). Aurora mode: `aws ssm get-parameter --with-decryption --name /meeting-review/prod/DATABASE_URL --query Parameter.Value --output text` after the first apply | Always |
+| `SEED_ADMIN_EMAIL` | E-mail address of the first system administrator | Only for `run_seed = true` |
+| `SEED_ADMIN_PASSWORD` | Their initial password; change it after the first sign-in | Only for `run_seed = true` |
+
+**Variables**
+
+| Name | Purpose | Default |
+| --- | --- | --- |
+| `LAMBDA_API_NAME` | Lambda function behind `/api/*` | required |
+| `LAMBDA_WORKER_NAME` | Lambda function consuming the SQS job queue | required |
+| `LAMBDA_SCHEDULED_NAME` | Lambda function run nightly by EventBridge Scheduler | required |
+| `WEB_BUCKET` | S3 bucket that holds the built SPA | required |
+| `CLOUDFRONT_DISTRIBUTION_ID` | Distribution to invalidate after a web upload | required |
+| `AWS_REGION` | Region of the stack | `eu-west-2` |
+| `VITE_APP_NAME`, `VITE_COLLEGE_NAME` | Branding baked into the SPA | `Meeting Review`, `South London College` |
+| `VITE_LOGO_URL` | Logo shown in the header and on the sign-in page (a file in `apps/web/public` or an absolute URL) | `/slc-logo.png` |
+| `SEED_DEMO_DATA` | `true` also creates demo tutors, meetings and reports when seeding (evaluation only) | `false` |
+
+`VITE_API_BASE_URL` is not a variable in this profile: it is always `/api`,
+because CloudFront routes that path to the API Lambda, and the API rejects
+requests that do not arrive through CloudFront (missing `X-Origin-Verify`).
+
+### First deployment checklist
+
+1. One ACM certificate in **us-east-1** for `domain_name` (section 3, certificate 1
+   only; no regional certificate is needed because there is no load balancer).
+2. Database. External mode (default): create a PostgreSQL database with a
+   provider that offers a London region, copy its TLS connection string and
+   store it before the first apply:
+   `aws ssm put-parameter --region eu-west-2 --name /meeting-review/prod/DATABASE_URL --type SecureString --value 'postgresql://...?sslmode=require'`.
+   Aurora mode: set `database_mode = "aurora_serverless_v2"` in
+   `terraform.tfvars`; Terraform creates the cluster and the parameter.
+3. `cd infra/terraform-serverless`, copy and edit `terraform.tfvars.example`
+   (`domain_name`, certificate ARN, `github_repository`, `email_from`, optional
+   existing `route53_zone_id`), then `terraform init && terraform apply`.
+4. Paste the OpenRouter key:
+   `aws ssm put-parameter --region eu-west-2 --name /meeting-review/prod/OPENROUTER_API_KEY --type SecureString --value 'sk-or-v1-...' --overwrite`,
+   then run `terraform apply` again. Lambda environment variables are copied
+   from the parameters at apply time, so **every parameter change needs an
+   apply** to reach the functions (there is no runtime secret lookup).
+5. Create the GitHub secrets and variables from the tables above.
+6. *Actions* -> **Deploy (serverless)** -> *Run workflow* with `run_seed` ticked.
+7. DNS: with `route53_zone_id` set the records exist already; otherwise create
+   the CNAME to the CloudFront hostname and the SES records from the outputs.
+8. Verify: `curl -s https://<domain>/api/health` returns 200; calling the
+   API Lambda's function URL directly (printed by `terraform output`) returns
+   403 for anything but `/api/health`; the SPA signs in; an uploaded recording moves
+   through transcribing and analysing (the worker's CloudWatch log group shows
+   the SQS messages); a message that fails three times lands in the dead-letter
+   queue rather than disappearing.
+
+### Updating and operating
+
+- **Code**: merge to `main` or run the workflow by hand; migrations run first,
+  the functions are updated in place, then the web build.
+- **Configuration or secrets**: change `terraform.tfvars` or the SSM parameter,
+  then `terraform apply`. A new Lambda version picks the values up on its next
+  cold start; there is nothing to restart.
+- **Rollback**: re-run the workflow from the previous commit (*Run workflow* ->
+  pick the commit or branch); the code update is atomic per function.
+- **Logs**: `aws logs tail /aws/lambda/<LAMBDA_API_NAME> --follow` (and the
+  worker / scheduled groups); 14-day retention.
+- **Stuck or failing jobs**: look at the dead-letter queue in the SQS console;
+  the message body names the job and meeting. Fix the cause (usually a
+  placeholder OpenRouter key, SES sandbox or a transcription error in the
+  worker log) and redrive the messages to the main queue from the console.
+- **Costs**: see [`docs/hosting-costs.md`](hosting-costs.md). The only
+  usage-driven items of note are Amazon Transcribe (per audio minute),
+  OpenRouter (per token, billed by OpenRouter) and, in Aurora mode, ACU-hours
+  while the cluster is awake. Set an AWS Budget alert at a few pounds so a
+  surprise is noticed within a day.

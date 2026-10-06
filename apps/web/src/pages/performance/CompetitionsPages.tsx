@@ -77,7 +77,7 @@ export function CompetitionPage() {
       setBusy(false);
     }
   };
-  const medal = (rank: number | null) => (rank === 1 ? 'text-amber-500' : rank === 2 ? 'text-slate-400' : rank === 3 ? 'text-amber-700' : 'text-slate-300');
+  const medal = (rank: number | null) => (rank === 1 ? 'text-amber-500' : rank === 2 ? 'text-slate-500' : rank === 3 ? 'text-amber-700' : 'text-slate-300');
   const unit = c.metric === 'MEETINGS_REVIEWED' ? '' : c.metric === 'AVERAGE_SCORE' ? '' : '%';
   return (
     <div className="mx-auto max-w-4xl">

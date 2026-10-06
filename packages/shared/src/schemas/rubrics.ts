@@ -9,8 +9,9 @@ export const GradeBandSchema = z.object({
 });
 
 export const FrameworkRefSchema = z.object({
-  framework: z.string().min(1).max(120),
+  framework: z.string().min(1).max(160),
   note: z.string().max(300).default(''),
+  url: z.string().max(500).optional(),
 });
 
 export const DescriptorsSchema = z.object({

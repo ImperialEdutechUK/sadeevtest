@@ -26,7 +26,7 @@ export interface PresetCriterion {
   weight: number;
   isMandatory: boolean;
   descriptors: Record<'1' | '3' | '5', string>;
-  frameworkRefs: { framework: string; note: string }[];
+  frameworkRefs: { framework: string; note: string; url?: string }[];
 }
 
 export interface PresetCategory {

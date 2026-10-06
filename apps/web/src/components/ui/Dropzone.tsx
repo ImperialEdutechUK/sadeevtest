@@ -112,7 +112,7 @@ export function Dropzone({
               {title} {required ? <span className="text-rose-600">*</span> : <span className="font-normal text-slate-500">(optional)</span>}
             </p>
             <p className="mt-1 max-w-sm text-sm text-slate-500">{description}</p>
-            <p className="mt-3 text-xs text-slate-400">Drag a file here or click to choose &middot; {ACCEPTED_EXTENSIONS[kind].join(' ')}</p>
+            <p className="mt-3 text-xs text-slate-500">Drag a file here or click to choose &middot; {ACCEPTED_EXTENSIONS[kind].join(' ')}</p>
           </>
         )}
       </div>

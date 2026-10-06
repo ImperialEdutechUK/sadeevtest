@@ -65,7 +65,7 @@ export function PersonPage() {
                 <div key={k.id}>
                   <div className="flex items-center justify-between text-sm">
                     <span className="flex items-center gap-1.5 font-medium text-slate-800"><Target className="h-4 w-4 text-brand-700" /> {k.name}</span>
-                    <span className={k.met === null ? 'text-slate-400' : k.met ? 'text-emerald-700' : 'text-amber-700'}>{k.current === null ? 'no data' : `${k.current} / ${k.target}`}</span>
+                    <span className={k.met === null ? 'text-slate-500' : k.met ? 'text-emerald-700' : 'text-amber-700'}>{k.current === null ? 'no data' : `${k.current} / ${k.target}`}</span>
                   </div>
                   <ProgressBar className="mt-1.5" value={k.current === null ? 0 : Math.min(100, (k.current / Math.max(k.target, 1)) * 100)} tone={k.met === null ? 'brand' : k.met ? 'success' : 'warning'} label={k.name} />
                   <p className="mt-0.5 text-xs text-slate-500">{KPI_METRIC_LABELS[k.metric as KpiMetric]}</p>

@@ -106,7 +106,10 @@ export function ScoreRing({ score, label, size = 140, bands }: { score: number |
   const c = 2 * Math.PI * r;
   const pct = Math.max(0, Math.min(100, score ?? 0));
   const colourName = bands?.length ? [...bands].sort((a, b) => b.min - a.min).find((b) => pct >= b.min)?.colour : undefined;
-  const hex = { emerald: '#1b7f3b', teal: '#2a78d6', amber: '#eda100', rose: '#e34948' }[colourName ?? ''] ?? (pct >= 85 ? '#1b7f3b' : pct >= 70 ? '#2a78d6' : pct >= 55 ? '#eda100' : '#e34948');
+  const key = colourName ?? (pct >= 85 ? 'emerald' : pct >= 70 ? 'teal' : pct >= 55 ? 'amber' : 'rose');
+  // Band fill colours for the ring stroke; text uses darker tokens that meet 4.5:1 on white.
+  const hex = ({ emerald: '#1b7f3b', teal: '#2a78d6', amber: '#eda100', rose: '#e34948' } as Record<string, string>)[key] ?? '#94a3b8';
+  const labelClass = ({ emerald: 'text-emerald-800', teal: 'text-blue-800', amber: 'text-amber-900', rose: 'text-rose-800' } as Record<string, string>)[key] ?? 'text-slate-700';
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }} role="img" aria-label={`Overall score ${score ?? 'not available'} out of 100${label ? `, ${label}` : ''}`}>
       <svg width={size} height={size} className="-rotate-90">
@@ -116,7 +119,7 @@ export function ScoreRing({ score, label, size = 140, bands }: { score: number |
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-4xl font-semibold leading-none text-slate-900">{score === null ? '-' : Math.round(score)}</span>
         <span className="mt-1 text-xs text-slate-500">out of 100</span>
-        {label && <span className="mt-1 text-xs font-semibold" style={{ color: hex }}>{label}</span>}
+        {label && <span className={cn('mt-1 text-xs font-semibold', labelClass)}>{label}</span>}
       </div>
     </div>
   );

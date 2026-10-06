@@ -1,0 +1,72 @@
+# ---------------------------------------------------------------------------
+# Copy to terraform.tfvars (git-ignored) and replace the placeholders.
+# Serverless profile: everything here is pay-per-request / free tier.
+# ---------------------------------------------------------------------------
+
+# --- Naming and region ---
+project_name = "meeting-review"
+environment  = "prod" # use e.g. "prod-sls" if infra/terraform also runs in this account
+aws_region   = "eu-west-2"
+tags = {
+  Owner      = "IT Services"
+  CostCentre = "replace-me"
+}
+
+# --- Domain, certificate and DNS ---
+domain_name = "meetingreview.example.ac.uk"
+
+# Leave empty to let Terraform request a free ACM certificate in us-east-1,
+# or paste the ARN of an existing ISSUED certificate covering domain_name.
+acm_certificate_arn_us_east_1 = ""
+
+# ID of an EXISTING Route 53 hosted zone for the domain (records, certificate
+# validation and SES records are then created automatically). Empty = manage
+# DNS yourself from the outputs. No zone is created by this stack.
+route53_zone_id = ""
+
+# --- GitHub Actions ---
+github_repository           = "your-org/meeting-review"
+github_deploy_branch        = "main"
+create_github_oidc_provider = true # false if the account already has the GitHub OIDC provider
+
+# --- Lambda ---
+lambda_zip_path           = "../../apps/api/lambda-dist.zip" # placeholder bundle is used if missing
+lambda_architecture       = "arm64"
+api_memory_mb             = 1024
+api_timeout_seconds       = 60
+api_reserved_concurrency  = -1 # e.g. 10 to cap DB connections (needs >100 spare account concurrency)
+worker_memory_mb          = 2048
+worker_timeout_seconds    = 900
+worker_max_concurrency    = 5
+scheduled_memory_mb       = 1024
+scheduled_timeout_seconds = 300
+retention_schedule_expression = "cron(30 2 * * ? *)" # UTC
+log_level                 = "info"
+log_retention_days        = 14
+
+# --- Database ---
+# "external": you create the SSM parameter /meeting-review/prod/DATABASE_URL
+#             (see README) - e.g. a managed Postgres with a free tier in London.
+# "aurora_serverless_v2": Terraform creates an Aurora cluster that scales to 0 ACU
+#             with a public, TLS-only endpoint (read the trade-off in database.tf).
+database_mode = "external"
+
+# Aurora settings (ignored in external mode)
+aurora_engine_version           = "16.8"
+aurora_min_capacity             = 0
+aurora_max_capacity             = 1
+aurora_seconds_until_auto_pause = 300
+aurora_db_name                  = "meeting_review"
+aurora_master_username          = "meeting_review"
+aurora_allowed_cidrs            = ["0.0.0.0/0"]
+aurora_db_connection_options    = "sslmode=no-verify"
+aurora_vpc_cidr                 = "10.30.0.0/24"
+aurora_deletion_protection      = true
+aurora_enable_data_api          = true
+
+# --- Application ---
+openrouter_model           = "anthropic/claude-sonnet-5.5"
+transcribe_language        = "en-GB"
+email_from                 = "Meeting Review <no-reply@example.ac.uk>"
+create_ses_domain_identity = true # false if this account/region already verifies the domain
+recording_retention_days   = 90

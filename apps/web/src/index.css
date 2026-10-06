@@ -29,8 +29,9 @@
   --color-grade-developing: #eda100;
   --color-grade-support: #e34948;
 
-  /* Chart series */
-  --color-series-1: #2a78d6;
+  /* Chart series. Series 1 is the brand teal (4.7:1 on white) so "the college's own number" never shares a colour
+     with the blue 'Good' grade band; series 2 is orange for comparisons (validated pair, CVD-safe). */
+  --color-series-1: #088ea4;
   --color-series-2: #eb6834;
   --color-series-3: #1baf7a;
 
@@ -49,10 +50,15 @@
   body {
     @apply bg-slate-50 text-slate-800;
   }
+  /* Focus indicator: 4.7:1 on white (WCAG 1.4.11); inside dark brand panels a light ring (5.4:1) is used instead. */
   :focus-visible {
-    outline: 3px solid var(--color-brand-300);
+    outline: 3px solid var(--color-brand-700);
     outline-offset: 2px;
     border-radius: 6px;
+  }
+  .bg-brand-800 :focus-visible,
+  .bg-brand-900 :focus-visible {
+    outline-color: var(--color-brand-200);
   }
   ::selection {
     background: var(--color-brand-100);

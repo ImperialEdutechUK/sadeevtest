@@ -16,11 +16,12 @@ const LOGO_URL = (import.meta.env.VITE_LOGO_URL as string | undefined) ?? '/slc-
 function AuthLayout({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-brand-800 lg:flex-row">
-      <div className="flex flex-1 flex-col justify-between p-8 text-white lg:p-14">
+      <div className="relative flex flex-1 flex-col justify-between p-8 text-white lg:p-14">
+        <span aria-hidden className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-brand-500 to-accent-500" />
         <div className="flex items-center gap-4">
           {LOGO_URL ? (
             <span className="inline-flex items-center rounded-xl bg-white px-3 py-2">
-              <img src={LOGO_URL} alt={COLLEGE} className="h-11 w-auto object-contain" />
+              <img src={LOGO_URL} alt={COLLEGE} className="h-16 w-auto object-contain" />
             </span>
           ) : null}
           <div>
@@ -37,7 +38,7 @@ function AuthLayout({ title, subtitle, children }: { title: string; subtitle?: s
             <li>&#10003; Progress, KPIs and appraisal summaries in one place</li>
           </ul>
         </div>
-        <p className="hidden text-xs text-brand-300 lg:block">AI-assisted. Decisions about people are always made by people.</p>
+        <p className="hidden text-xs text-brand-200 lg:block">AI-assisted. Decisions about people are always made by people.</p>
       </div>
       <div className="flex flex-1 items-center justify-center bg-white px-6 py-10 lg:rounded-l-[2rem]">
         <div className="w-full max-w-md">

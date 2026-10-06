@@ -250,7 +250,7 @@ function AuditTab() {
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3 font-medium">When</th><th className="px-4 py-3 font-medium">Who</th><th className="px-4 py-3 font-medium">Action</th><th className="hidden px-4 py-3 font-medium md:table-cell">Details</th></tr></thead>
           <tbody className="divide-y divide-slate-100">
             {data?.items.map((a) => (
-              <tr key={a.id}><td className="whitespace-nowrap px-4 py-2 text-slate-600">{fmtDateTime(a.createdAt)}</td><td className="px-4 py-2 text-slate-800">{a.actorName ?? 'system'}</td><td className="px-4 py-2 font-mono text-xs text-slate-800">{a.action}<span className="ml-1 text-slate-400">{a.entityType}{a.entityId ? ` ${a.entityId.slice(-6)}` : ''}</span></td><td className="hidden max-w-md truncate px-4 py-2 font-mono text-xs text-slate-500 md:table-cell">{a.metadata ? JSON.stringify(a.metadata) : ''}</td></tr>
+              <tr key={a.id}><td className="whitespace-nowrap px-4 py-2 text-slate-600">{fmtDateTime(a.createdAt)}</td><td className="px-4 py-2 text-slate-800">{a.actorName ?? 'system'}</td><td className="px-4 py-2 font-mono text-xs text-slate-800">{a.action}<span className="ml-1 text-slate-500">{a.entityType}{a.entityId ? ` ${a.entityId.slice(-6)}` : ''}</span></td><td className="hidden max-w-md truncate px-4 py-2 font-mono text-xs text-slate-500 md:table-cell">{a.metadata ? JSON.stringify(a.metadata) : ''}</td></tr>
             ))}
           </tbody>
         </table>

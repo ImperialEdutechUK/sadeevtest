@@ -48,7 +48,7 @@ export function AppShell() {
           to={n.to}
           end={n.to === '/'}
           className={({ isActive }) =>
-            cn('flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors', isActive ? 'bg-white/15 text-white' : 'text-brand-100 hover:bg-white/10 hover:text-white')
+            cn('flex items-center gap-3 rounded-xl border-l-4 px-3 py-2.5 text-sm font-medium transition-colors', isActive ? 'border-brand-400 bg-white/15 text-white' : 'border-transparent text-brand-100 hover:bg-white/10 hover:text-white')
           }
         >
           <n.icon className="h-5 w-5 shrink-0" aria-hidden />
@@ -77,12 +77,10 @@ export function AppShell() {
         <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
           <div className="absolute inset-0 bg-slate-900/50" onClick={() => setOpen(false)} />
           <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-brand-800 text-white shadow-xl">
-            <div className="flex items-center justify-between pr-2">
-              <Brand />
-              <button className="rounded-lg p-2 text-brand-100 hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close menu">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+            <button className="absolute right-2 top-4 z-10 rounded-lg p-2 text-brand-100 hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close menu">
+              <X className="h-5 w-5" />
+            </button>
+            <Brand />
             {nav}
           </aside>
         </div>
@@ -113,10 +111,11 @@ export function AppShell() {
 
 function Brand() {
   return (
-    <Link to="/" className="block px-4 pt-4 pb-3">
+    <Link to="/" className="relative block px-4 pt-5 pb-3">
+      <span aria-hidden className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-brand-500 to-accent-500" />
       {LOGO_URL ? (
-        <span className="flex items-center justify-center rounded-xl bg-white px-3 py-2">
-          <img src={LOGO_URL} alt={COLLEGE} className="h-10 w-auto object-contain" />
+        <span className="inline-flex items-center rounded-xl bg-white px-3 py-2">
+          <img src={LOGO_URL} alt={COLLEGE} className="h-14 w-auto object-contain" />
         </span>
       ) : null}
       <span className="mt-2.5 block text-base font-semibold leading-tight text-white">{APP_NAME}</span>
@@ -153,15 +152,15 @@ function NotificationsMenu() {
             {data?.items.map((n) => (
               <DM.Item
                 key={n.id}
-                className={cn('cursor-pointer rounded-xl px-3 py-2.5 outline-none hover:bg-slate-50 focus:bg-slate-50', !n.readAt && 'bg-brand-50/60')}
+                className={cn('cursor-pointer rounded-xl px-3 py-2.5 outline-none hover:bg-slate-50 focus:bg-slate-50', !n.readAt && 'bg-brand-50 ring-1 ring-inset ring-brand-100')}
                 onSelect={() => {
                   if (!n.readAt) markRead.mutate([n.id]);
                   if (n.link) navigate(n.link);
                 }}
               >
-                <p className="text-sm font-medium text-slate-900">{n.title}</p>
+                <p className="flex items-center gap-2 text-sm font-medium text-slate-900">{!n.readAt && <span aria-label="Unread" className="inline-block h-2 w-2 shrink-0 rounded-full bg-brand-500" />}{n.title}</p>
                 <p className="line-clamp-2 text-xs text-slate-600">{n.body}</p>
-                <p className="mt-0.5 text-[11px] text-slate-400">{fmtAgo(n.createdAt)}</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">{fmtAgo(n.createdAt)}</p>
               </DM.Item>
             ))}
           </div>

@@ -15,7 +15,7 @@ import { cn } from '@/lib/cn';
 import { keys, mutations, useRubric } from '@/lib/queries';
 import { useQueryClient } from '@tanstack/react-query';
 
-type Criterion = { id?: string; code: string; title: string; description: string; weight: number; isMandatory: boolean; descriptors: { '1': string; '3': string; '5': string }; frameworkRefs: { framework: string; note: string }[] };
+type Criterion = { id?: string; code: string; title: string; description: string; weight: number; isMandatory: boolean; descriptors: { '1': string; '3': string; '5': string }; frameworkRefs: { framework: string; note: string; url?: string }[] };
 type Category = { id?: string; name: string; description: string; criteria: Criterion[] };
 type Draft = { name: string; description: string; meetingType: MeetingType; isActive: boolean; isDefault: boolean; gradeBands: { min: number; label: string; colour: string; description: string }[]; categories: Category[] };
 
@@ -149,11 +149,11 @@ export function RubricEditorPage() {
                   <div key={k.id ?? key}>
                     <button type="button" className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-slate-50" onClick={() => setOpenIdx(open ? null : key)} aria-expanded={open}>
                       <GripVertical className="h-4 w-4 text-slate-300" aria-hidden />
-                      <span className="w-10 text-xs font-semibold text-slate-400">{k.code || '?'}</span>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">{k.title || <span className="text-slate-400">Untitled criterion</span>}</span>
+                      <span className="w-10 text-xs font-semibold text-slate-500">{k.code || '?'}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">{k.title || <span className="text-slate-500">Untitled criterion</span>}</span>
                       {k.isMandatory && <Badge tone="brand">Essential</Badge>}
                       <span className="text-xs text-slate-500">weight {k.weight}</span>
-                      <ChevronDown className={cn('h-4 w-4 text-slate-400 transition-transform', open && 'rotate-180')} />
+                      <ChevronDown className={cn('h-4 w-4 text-slate-500 transition-transform', open && 'rotate-180')} />
                     </button>
                     {open && (
                       <div className="space-y-4 bg-slate-50/60 px-5 py-4">
@@ -177,13 +177,14 @@ export function RubricEditorPage() {
                           <p className="mb-1.5 text-sm font-medium text-slate-800">Framework references <span className="font-normal text-slate-500">(why this criterion is here)</span></p>
                           <div className="space-y-2">
                             {k.frameworkRefs.map((f, fi) => (
-                              <div key={fi} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                              <div key={fi} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
                                 <Input value={f.framework} placeholder="Framework" disabled={readOnly} aria-label="Framework" onChange={(e) => updateCrit(ci, ki, { frameworkRefs: k.frameworkRefs.map((x, j) => (j === fi ? { ...x, framework: e.target.value } : x)) })} />
                                 <Input value={f.note} placeholder="Note" disabled={readOnly} aria-label="Note" onChange={(e) => updateCrit(ci, ki, { frameworkRefs: k.frameworkRefs.map((x, j) => (j === fi ? { ...x, note: e.target.value } : x)) })} />
+                                <Input value={f.url ?? ''} placeholder="Link (optional)" disabled={readOnly} aria-label="Link" onChange={(e) => updateCrit(ci, ki, { frameworkRefs: k.frameworkRefs.map((x, j) => (j === fi ? { ...x, url: e.target.value || undefined } : x)) })} />
                                 {!readOnly && <Button variant="ghost" size="sm" aria-label="Remove reference" onClick={() => updateCrit(ci, ki, { frameworkRefs: k.frameworkRefs.filter((_, j) => j !== fi) })}><Trash2 className="h-4 w-4" /></Button>}
                               </div>
                             ))}
-                            {!readOnly && <Button variant="ghost" size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => updateCrit(ci, ki, { frameworkRefs: [...k.frameworkRefs, { framework: '', note: '' }] })}>Add reference</Button>}
+                            {!readOnly && <Button variant="ghost" size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => updateCrit(ci, ki, { frameworkRefs: [...k.frameworkRefs, { framework: '', note: '', url: undefined }] })}>Add reference</Button>}
                           </div>
                         </div>
                         {!readOnly && <div className="flex justify-end"><Button variant="ghost" size="sm" icon={<Trash2 className="h-4 w-4" />} onClick={() => updateCat(ci, { criteria: cat.criteria.filter((_, i) => i !== ki) })}>Remove criterion</Button></div>}

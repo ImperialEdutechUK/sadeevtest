@@ -259,7 +259,7 @@ export function serializeAnalysis(a: AnalysisRow): Analysis {
       weight: c.criterion.weight,
       isMandatory: c.criterion.isMandatory,
       descriptors: (c.criterion.descriptors as Record<string, string>) ?? {},
-      frameworkRefs: asArray<{ framework: string; note: string }>(c.criterion.frameworkRefs),
+      frameworkRefs: asArray<{ framework: string; note: string; url?: string }>(c.criterion.frameworkRefs),
       score: c.score,
       notApplicable: c.notApplicable,
       rationale: c.rationale,

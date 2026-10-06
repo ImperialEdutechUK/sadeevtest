@@ -145,7 +145,7 @@ function ProcessingCard({ m }: { m: MeetingDetail }) {
               <div>
                 <p className={cn('text-sm font-medium', s.state === 'pending' || s.state === 'skipped' ? 'text-slate-500' : 'text-slate-900')}>{s.label}</p>
                 {s.detail && <p className="text-xs text-slate-500">{s.detail}</p>}
-                {s.at && s.state === 'done' && <p className="text-[11px] text-slate-400">{fmtDateTime(s.at)}</p>}
+                {s.at && s.state === 'done' && <p className="text-[11px] text-slate-500">{fmtDateTime(s.at)}</p>}
               </div>
             </li>
           ))}
@@ -176,7 +176,7 @@ function FilesCard({ m }: { m: MeetingDetail }) {
         <ul className="divide-y divide-slate-100">
           {m.files.map((f) => (
             <li key={f.id} className="flex items-center gap-3 px-5 py-3 text-sm">
-              <FileText className="h-5 w-5 shrink-0 text-slate-400" aria-hidden />
+              <FileText className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-slate-900">{f.fileName}</p>
                 <p className="text-xs text-slate-500">

@@ -13,7 +13,7 @@ export const CriterionResultSchema = z.object({
   weight: z.number(),
   isMandatory: z.boolean(),
   descriptors: z.record(z.string(), z.string()),
-  frameworkRefs: z.array(z.object({ framework: z.string(), note: z.string() })),
+  frameworkRefs: z.array(z.object({ framework: z.string(), note: z.string(), url: z.string().optional() })),
   score: z.number().nullable(),
   notApplicable: z.boolean(),
   rationale: z.string(),

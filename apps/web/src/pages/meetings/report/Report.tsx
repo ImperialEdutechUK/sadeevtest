@@ -227,7 +227,7 @@ function CriterionCard({ c, onJump }: { c: CriterionResult; onJump: (s: number) 
   return (
     <Card className={cn(c.isMandatory && (c.effectiveScore ?? 0) < 3 && !c.notApplicable && 'border-rose-200')}>
       <button type="button" className="flex w-full items-start gap-3 px-5 py-4 text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="mt-0.5 shrink-0 text-xs font-semibold text-slate-400">{c.code}</span>
+        <span className="mt-0.5 shrink-0 text-xs font-semibold text-slate-500">{c.code}</span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-slate-900">{c.title}</span>
@@ -238,7 +238,7 @@ function CriterionCard({ c, onJump }: { c: CriterionResult; onJump: (s: number) 
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <ScorePill score={c.effectiveScore} />
-          <ChevronDown className={cn('h-4 w-4 text-slate-400 transition-transform', open && 'rotate-180')} aria-hidden />
+          <ChevronDown className={cn('h-4 w-4 text-slate-500 transition-transform', open && 'rotate-180')} aria-hidden />
         </span>
       </button>
       {open && (
@@ -274,9 +274,13 @@ function CriterionCard({ c, onJump }: { c: CriterionResult; onJump: (s: number) 
           {c.frameworkRefs.length > 0 && (
             <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
               <BookOpen className="h-3.5 w-3.5" /> Draws on:
-              {c.frameworkRefs.map((f, i) => (
-                <span key={i} className="rounded-full bg-slate-100 px-2 py-0.5">{f.framework}{f.note ? ` - ${f.note}` : ''}</span>
-              ))}
+              {c.frameworkRefs.map((f, i) =>
+                f.url ? (
+                  <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="rounded-full bg-slate-100 px-2 py-0.5 hover:bg-slate-200 hover:underline">{f.framework}{f.note ? ` - ${f.note}` : ''}</a>
+                ) : (
+                  <span key={i} className="rounded-full bg-slate-100 px-2 py-0.5">{f.framework}{f.note ? ` - ${f.note}` : ''}</span>
+                ),
+              )}
             </p>
           )}
         </div>
@@ -329,10 +333,10 @@ function TranscriptPanel({ meeting, jumpTo, onChanged }: { meeting: MeetingDetai
             const role = map[s.speaker] ?? 'OTHER';
             return (
               <li key={i} id={`seg-${i}`} className="flex gap-3 px-4 py-2.5 transition-shadow">
-                <span className="w-12 shrink-0 pt-0.5 text-xs tabular-nums text-slate-400">{formatTimestamp(s.start)}</span>
+                <span className="w-12 shrink-0 pt-0.5 text-xs tabular-nums text-slate-500">{formatTimestamp(s.start)}</span>
                 <div className="min-w-0">
                   <span className={cn('mb-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold', roleColour[role])}>
-                    {role === 'TUTOR' ? 'Tutor' : role === 'LEARNER' ? 'Learner' : 'Other'} <span className="font-normal opacity-70">({s.speaker})</span>
+                    {role === 'TUTOR' ? 'Tutor' : role === 'LEARNER' ? 'Learner' : 'Other'} <span className="font-normal">({s.speaker})</span>
                   </span>
                   <p className="text-sm leading-relaxed text-slate-800">{s.text}</p>
                 </div>
@@ -417,7 +421,7 @@ function HowScored({ analysis: a, meeting }: { analysis: Analysis; meeting: Meet
               {a.criteria.map((c) => {
                 const r = result.rows.find((x) => x.criterionId === c.criterionId)!;
                 return (
-                  <tr key={c.id} className={cn(c.notApplicable && 'text-slate-400')}>
+                  <tr key={c.id} className={cn(c.notApplicable && 'text-slate-500')}>
                     <td className="px-4 py-2">{c.code} {c.title}{c.isMandatory && <span className="ml-1 text-xs text-brand-700">(essential)</span>}</td>
                     <td className="px-4 py-2">{c.weight}</td>
                     <td className="px-4 py-2">{c.notApplicable ? 'n/a' : c.effectiveScore}{c.moderatedScore !== null && <span className="text-xs text-slate-500"> (AI: {c.score})</span>}</td>
@@ -590,7 +594,7 @@ function ModerationDialog({ open, onOpenChange, analysis: a, onDone }: { open: b
         <div className="max-h-80 space-y-2 overflow-y-auto pr-1 scrollbar-thin">
           {a.criteria.filter((c) => !c.notApplicable).map((c) => (
             <div key={c.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
-              <span className="w-10 text-xs font-semibold text-slate-400">{c.code}</span>
+              <span className="w-10 text-xs font-semibold text-slate-500">{c.code}</span>
               <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{c.title}</span>
               <span className="text-xs text-slate-500">AI: {c.score}</span>
               <Select className="h-9 w-28 text-sm" value={scores[c.id] === null || scores[c.id] === undefined ? '' : String(scores[c.id])} onChange={(e) => setScores({ ...scores, [c.id]: e.target.value === '' ? null : Number(e.target.value) })} aria-label={`Moderated score for ${c.title}`}>

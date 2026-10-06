@@ -33,7 +33,7 @@ export function serializeRubric(r: RubricRow): Rubric {
       weight: k.weight,
       isMandatory: k.isMandatory,
       descriptors: (k.descriptors as Record<'1' | '3' | '5', string>) ?? { '1': '', '3': '', '5': '' },
-      frameworkRefs: asArray<{ framework: string; note: string }>(k.frameworkRefs),
+      frameworkRefs: asArray<{ framework: string; note: string; url?: string }>(k.frameworkRefs),
       order: k.order,
     })),
   }));
