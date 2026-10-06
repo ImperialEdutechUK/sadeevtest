@@ -13,7 +13,7 @@ export type TranscriptionStatus =
 
 export interface TranscriptionProvider {
   readonly name: 'aws' | 'mock';
-  start(input: { meetingId: string; storageKey: string; fileName: string }): Promise<TranscriptionStartResult>;
+  start(input: { meetingId: string; storageKey: string; fileName: string; language?: string }): Promise<TranscriptionStartResult>;
   check(jobName: string): Promise<TranscriptionStatus>;
 }
 

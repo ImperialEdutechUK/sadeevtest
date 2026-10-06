@@ -117,6 +117,8 @@ export async function updateCompetition(actor: AuthUser, id: string, input: Part
 }
 
 export async function deleteCompetition(actor: AuthUser, id: string) {
+  const exists = await prisma.competition.findUnique({ where: { id } });
+  if (!exists) throw new NotFoundError('Competition');
   await prisma.competition.delete({ where: { id } });
   audit({ actorId: actor.id, action: 'competition.deleted', entityType: 'competition', entityId: id });
 }
@@ -136,6 +138,11 @@ export async function leaveCompetition(actor: AuthUser, id: string) {
 }
 
 export async function addParticipants(actor: AuthUser, id: string, userIds: string[]) {
+  const exists = await prisma.competition.findUnique({ where: { id } });
+  if (!exists) throw new NotFoundError('Competition');
+  const users = await prisma.user.findMany({ where: { id: { in: userIds }, isActive: true }, select: { id: true } });
+  userIds = users.map((u) => u.id);
+  if (!userIds.length) throw new BadRequestError('None of the selected people were found');
   await prisma.competitionParticipant.createMany({ data: userIds.map((userId) => ({ competitionId: id, userId })), skipDuplicates: true });
   const c = await prisma.competition.findUniqueOrThrow({ where: { id } });
   for (const userId of userIds) await notify({ userId, type: 'COMPETITION_STARTED', title: `You have been entered into "${c.name}"`, body: c.description || 'See the competition page for the rules and standings.', link: `/competitions/${id}`, email: false });

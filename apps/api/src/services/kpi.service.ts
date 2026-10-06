@@ -112,6 +112,8 @@ export async function updateKpi(actor: AuthUser, id: string, input: Partial<Crea
 }
 
 export async function deleteKpi(actor: AuthUser, id: string) {
+  const existing = await prisma.kpi.findUnique({ where: { id } });
+  if (!existing) throw new NotFoundError('KPI');
   await prisma.kpi.delete({ where: { id } });
   audit({ actorId: actor.id, action: 'kpi.deleted', entityType: 'kpi', entityId: id });
 }

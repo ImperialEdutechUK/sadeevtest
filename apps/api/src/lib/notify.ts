@@ -2,6 +2,7 @@ import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { getEmailProvider } from '../providers/email/index.js';
 import { loadConfig } from '../config.js';
+import { getSettings } from '../services/settings.service.js';
 
 export interface NotifyInput {
   userId: string;
@@ -17,7 +18,8 @@ export async function notify(input: NotifyInput): Promise<void> {
     await prisma.notification.create({
       data: { userId: input.userId, type: input.type, title: input.title, body: input.body, link: input.link ?? null },
     });
-    if (input.email !== false) {
+    const settings = await getSettings();
+    if (input.email !== false && settings.emailNotifications) {
       const user = await prisma.user.findUnique({ where: { id: input.userId }, select: { email: true, emailNotifications: true, firstName: true } });
       if (user?.emailNotifications) {
         const cfg = loadConfig();

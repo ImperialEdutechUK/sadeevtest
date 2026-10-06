@@ -147,7 +147,7 @@ export async function generateAppraisal(id: string, triggeredBy: string | null) 
   });
   try {
     const llm = getLlmProvider();
-    const reply = await llm.complete(messages, { purpose: 'appraisal', maxTokens: 3000 });
+    const reply = await llm.complete(messages, { purpose: 'appraisal', maxTokens: 3000, model: settings.llmModel });
     const narrative = AppraisalNarrativeSchema.parse(extractJson(reply.text));
     await prisma.appraisal.update({ where: { id }, data: { stats: stats as never, narrative: narrative as never, model: reply.model, generatedAt: new Date(), status: a.status === 'DRAFT' ? 'GENERATED' : a.status } });
     if (triggeredBy) await notify({ userId: triggeredBy, type: 'APPRAISAL_SHARED', title: `Appraisal summary ready: ${a.title}`, body: 'The AI-assisted summary has been generated. Review and edit it before sharing with the tutor.', link: `/appraisals/${id}`, email: false });

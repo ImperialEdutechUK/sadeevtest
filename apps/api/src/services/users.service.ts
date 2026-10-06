@@ -26,6 +26,7 @@ export function serializeUser(u: UserWithDept): UserSummary {
     isActive: u.isActive,
     mustChangePassword: u.mustChangePassword,
     bio: u.bio,
+    emailNotifications: u.emailNotifications,
     createdAt: isoReq(u.createdAt),
     lastLoginAt: iso(u.lastLoginAt),
   };

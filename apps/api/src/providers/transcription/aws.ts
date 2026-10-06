@@ -33,7 +33,7 @@ export class AwsTranscribeProvider implements TranscriptionProvider {
     this.client = new TranscribeClient({ region: cfg.TRANSCRIBE_REGION });
   }
 
-  async start(input: { meetingId: string; storageKey: string; fileName: string }): Promise<TranscriptionStartResult> {
+  async start(input: { meetingId: string; storageKey: string; fileName: string; language?: string }): Promise<TranscriptionStartResult> {
     const storage = getStorage();
     const uri = storage.s3Uri(input.storageKey);
     if (!uri) throw new Error('Amazon Transcribe requires S3 storage');
@@ -44,7 +44,7 @@ export class AwsTranscribeProvider implements TranscriptionProvider {
         TranscriptionJobName: jobName,
         Media: { MediaFileUri: uri },
         MediaFormat: (MEDIA_FORMATS[ext] ?? undefined) as never,
-        LanguageCode: this.cfg.TRANSCRIBE_LANGUAGE as LanguageCode,
+        LanguageCode: (input.language?.trim() || this.cfg.TRANSCRIBE_LANGUAGE) as LanguageCode,
         OutputBucketName: this.cfg.S3_BUCKET,
         OutputKey: `transcribe-output/${jobName}.json`,
         Settings: { ShowSpeakerLabels: true, MaxSpeakerLabels: this.cfg.TRANSCRIBE_MAX_SPEAKERS },

@@ -39,6 +39,7 @@ export const UserSummarySchema = z.object({
   isActive: z.boolean(),
   mustChangePassword: z.boolean(),
   bio: z.string().nullable().optional(),
+  emailNotifications: z.boolean().default(true),
   createdAt: z.string(),
   lastLoginAt: z.string().nullable(),
 });

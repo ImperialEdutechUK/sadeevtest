@@ -23,8 +23,8 @@ const NAV: NavItem[] = [
   { to: '/kpis', label: 'KPIs', icon: Target, permission: 'kpi:read' },
   { to: '/competitions', label: 'Competitions', icon: Trophy, permission: 'competition:read' },
   { to: '/appraisals', label: 'Appraisals', icon: ClipboardList, permission: ['appraisal:read:own', 'appraisal:read:any'] },
-  { to: '/criteria', label: 'Criteria', icon: BookOpen, permission: 'rubric:manage' },
-  { to: '/admin', label: 'Admin', icon: Shield, permission: ['user:manage', 'audit:read', 'settings:manage'] },
+  { to: '/criteria', label: 'Criteria', icon: BookOpen, permission: 'rubric:read' },
+  { to: '/admin', label: 'Admin', icon: Shield, permission: ['user:manage', 'audit:read', 'settings:manage', 'user:invite'] },
 ];
 
 const APP_NAME = (import.meta.env.VITE_APP_NAME as string | undefined) ?? 'Meeting Review';

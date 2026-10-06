@@ -1,6 +1,6 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CreateAppraisalSchema, CreateCompetitionSchema, CreateKpiSchema, UpdateAppraisalSchema, UpdateCompetitionSchema, UpdateKpiSchema } from '@slc/shared';
+import { CreateAppraisalSchema, CreateCompetitionSchema, CreateKpiSchema, QueryBoolSchema, UpdateAppraisalSchema, UpdateCompetitionSchema, UpdateKpiSchema } from '@slc/shared';
 import { requireUser } from '../plugins/auth.js';
 import { dashboardSummary, listPeople } from '../services/dashboard.service.js';
 import * as kpis from '../services/kpi.service.js';
@@ -16,7 +16,7 @@ export const performanceRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get('/dashboard', { schema: { tags: ['Dashboard'], querystring: rangeQuery } }, async (req) => dashboardSummary(requireUser(req), req.query));
   app.get('/people', { schema: { tags: ['Dashboard'], querystring: rangeQuery } }, async (req) => listPeople(requireUser(req), req.query));
 
-  app.get('/kpis', { schema: { tags: ['KPIs'], querystring: z.object({ includeInactive: z.coerce.boolean().optional() }) } }, async (req) => kpis.listKpis(requireUser(req), req.query));
+  app.get('/kpis', { schema: { tags: ['KPIs'], querystring: z.object({ includeInactive: QueryBoolSchema }) } }, async (req) => kpis.listKpis(requireUser(req), req.query));
   app.get('/kpis/:id', { schema: { tags: ['KPIs'], params: idParam } }, async (req) => kpis.getKpi(requireUser(req), req.params.id));
   app.post('/kpis', { onRequest: app.requirePermission('kpi:manage'), schema: { tags: ['KPIs'], body: CreateKpiSchema } }, async (req) => kpis.createKpi(requireUser(req), req.body));
   app.patch('/kpis/:id', { onRequest: app.requirePermission('kpi:manage'), schema: { tags: ['KPIs'], params: idParam, body: UpdateKpiSchema } }, async (req) => kpis.updateKpi(requireUser(req), req.params.id, req.body));

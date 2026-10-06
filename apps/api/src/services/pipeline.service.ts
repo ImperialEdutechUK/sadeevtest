@@ -1,5 +1,6 @@
 import type { TranscriptSegment } from '@slc/shared';
 import { prisma } from '../db.js';
+import { asArray } from '../lib/serialize.js';
 import { BadRequestError, NotFoundError } from '../lib/errors.js';
 import { notify } from '../lib/notify.js';
 import { logger } from '../logger.js';
@@ -35,7 +36,9 @@ export async function processMeeting(meetingId: string, triggeredBy: string | nu
   // Step 1: transcript
   const transcriptFile = files.find((f) => f.kind === 'TRANSCRIPT');
   const recording = files.find((f) => f.kind === 'RECORDING');
-  if (meeting.transcript && meeting.transcript.source !== 'MOCK') {
+  const newConversationFile = [transcriptFile, recording].some((f) => f && f.status === 'UPLOADED');
+  const hasUsableTranscript = !!meeting.transcript && asArray(meeting.transcript.segments).length > 0;
+  if (hasUsableTranscript && !newConversationFile) {
     await log(meetingId, 'transcript', 'skipped', 'Existing transcript reused');
     await enqueueAnalyse({ meetingId, triggeredBy });
     return;
@@ -56,7 +59,8 @@ export async function processMeeting(meetingId: string, triggeredBy: string | nu
     await prisma.meeting.update({ where: { id: meetingId }, data: { status: 'TRANSCRIBING' } });
     await log(meetingId, 'transcript', 'started', `Transcribing ${recording.fileName}`);
     const provider = getTranscriptionProvider();
-    const { jobName } = await provider.start({ meetingId, storageKey: recording.storageKey, fileName: recording.fileName });
+    const settings = await getSettings();
+    const { jobName } = await provider.start({ meetingId, storageKey: recording.storageKey, fileName: recording.fileName, language: settings.transcriptionLanguage });
     await prisma.transcript.upsert({
       where: { meetingId },
       create: { meetingId, source: provider.name === 'aws' ? 'AWS_TRANSCRIBE' : 'MOCK', segments: [], speakerMap: {}, jobName },

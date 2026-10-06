@@ -57,7 +57,7 @@ export async function runAnalysis(meetingId: string, opts: { triggeredBy?: strin
   // Mark previous analyses as superseded and create the new record up-front so the UI can show progress.
   await prisma.analysis.updateMany({ where: { meetingId, isCurrent: true }, data: { isCurrent: false } });
   const analysis = await prisma.analysis.create({
-    data: { meetingId, rubricId: meeting.rubricId, rubricVersion: meeting.rubric.version, status: 'RUNNING', provider: llm.name, model: llm.defaultModel(), promptVersion: PROMPT_VERSION, startedAt: new Date() },
+    data: { meetingId, rubricId: meeting.rubricId, rubricVersion: meeting.rubric.version, status: 'RUNNING', provider: llm.name, model: llm.name === 'openrouter' ? settings.llmModel : llm.defaultModel(), promptVersion: PROMPT_VERSION, startedAt: new Date() },
   });
   await prisma.meeting.update({ where: { id: meetingId }, data: { status: 'ANALYSING' } });
 
@@ -104,7 +104,7 @@ export async function runAnalysis(meetingId: string, opts: { triggeredBy?: strin
     if (truncated) inputsUsed.push('Transcript truncated for length');
 
     const allCodes = meeting.rubric.categories.flatMap((c) => c.criteria.map((k) => k.code));
-    const { output, model, usage, raw } = await callModelWithValidation(messages, allCodes);
+    const { output, model, usage, raw } = await callModelWithValidation(messages, allCodes, settings.llmModel);
 
     // Speaker roles: respect a manual confirmation; otherwise take the model's view.
     const finalMap: SpeakerMap = meeting.transcript.speakerMapSource === 'manual' ? initialMap : { ...initialMap, ...output.speakerRoles };
@@ -204,9 +204,9 @@ export function appendLog(existing: unknown, step: string, state: 'started' | 'd
   return [...log, { step, state, detail, at: new Date().toISOString() }].slice(-40);
 }
 
-async function callModelWithValidation(messages: ReturnType<typeof buildAnalysisMessages>['messages'], expectedCodes: string[]) {
+async function callModelWithValidation(messages: ReturnType<typeof buildAnalysisMessages>['messages'], expectedCodes: string[], model: string) {
   const llm = getLlmProvider();
-  let reply = await llm.complete(messages, { purpose: 'analysis' });
+  let reply = await llm.complete(messages, { purpose: 'analysis', model });
   let problem: string | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -228,7 +228,7 @@ async function callModelWithValidation(messages: ReturnType<typeof buildAnalysis
     }
     if (attempt === 0) {
       logger.warn({ problem }, 'model output invalid - asking for a repair');
-      reply = await llm.complete(buildRepairMessages(messages, reply.text, problem ?? 'invalid output'), { purpose: 'analysis-repair' });
+      reply = await llm.complete(buildRepairMessages(messages, reply.text, problem ?? 'invalid output'), { purpose: 'analysis-repair', model });
     }
   }
   throw new Error(problem ?? 'The model did not return a usable report');

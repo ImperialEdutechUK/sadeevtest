@@ -217,8 +217,8 @@ function SettingsTab() {
         <CardHeader title="General" />
         <CardBody className="space-y-4">
           <Field label="College name" id="scn"><Input id="scn" value={String(cur.collegeName)} onChange={(e) => setF({ ...cur, collegeName: e.target.value })} /></Field>
-          <Field label="Language model" id="sm" hint="Any chat model available on OpenRouter, e.g. anthropic/claude-sonnet-5.5. Takes effect for new reviews."><Input id="sm" value={String(cur.llmModel)} onChange={(e) => setF({ ...cur, llmModel: e.target.value })} /></Field>
-          <Field label="Transcription language" id="sl" hint="Language code for Amazon Transcribe, e.g. en-GB."><Input id="sl" value={String(cur.transcriptionLanguage)} onChange={(e) => setF({ ...cur, transcriptionLanguage: e.target.value })} /></Field>
+          <Field label="Language model" id="sm" hint="Any chat model available on OpenRouter, e.g. anthropic/claude-sonnet-5.5. Used for every new review and appraisal summary."><Input id="sm" value={String(cur.llmModel)} onChange={(e) => setF({ ...cur, llmModel: e.target.value })} /></Field>
+          <Field label="Transcription language" id="sl" hint="Language code for Amazon Transcribe, e.g. en-GB. Used for new recordings."><Input id="sl" value={String(cur.transcriptionLanguage)} onChange={(e) => setF({ ...cur, transcriptionLanguage: e.target.value })} /></Field>
         </CardBody>
       </Card>
       <Card>

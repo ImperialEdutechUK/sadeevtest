@@ -26,8 +26,8 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   ACADEMIC_ADMIN: 'Uploads meetings on behalf of tutors and maintains the review criteria.',
   ACADEMIC_MANAGER:
     'Sees every tutor, moderates reports, sets KPIs, runs competitions and writes appraisals.',
-  HR: 'Sees performance summaries and appraisals for people processes. Cannot change criteria.',
-  DIRECTOR: 'Full read access to all progress, KPIs and reports across the college.',
+  HR: 'Sees all reports, people and KPIs, and manages appraisals for people processes. Cannot change criteria or moderate.',
+  DIRECTOR: 'Reads everything across the college, sets KPIs and competitions, and can see the audit log.',
   SYSTEM_ADMIN: 'Manages users, settings and integrations. Full access.',
 };
 

@@ -92,14 +92,16 @@ export async function listMeetings(user: AuthUser, q: MeetingsQuery): Promise<Pa
     ],
   };
   const orderBy: Prisma.MeetingOrderByWithRelationInput = q.sort === 'oldest' ? { meetingDate: 'asc' } : { meetingDate: 'desc' };
+  const byScore = q.sort === 'highest' || q.sort === 'lowest';
   const [total, rows] = await Promise.all([
     prisma.meeting.count({ where }),
-    prisma.meeting.findMany({ where, include: listInclude, orderBy: [orderBy, { createdAt: 'desc' }], skip: (q.page - 1) * q.pageSize, take: q.pageSize }),
+    // Scores live on the current analysis, so score ordering is done in memory over the whole result set.
+    prisma.meeting.findMany({ where, include: listInclude, orderBy: [orderBy, { createdAt: 'desc' }], ...(byScore ? {} : { skip: (q.page - 1) * q.pageSize, take: q.pageSize }) }),
   ]);
   let items = rows.map(serializeMeetingListItem);
-  if (q.sort === 'highest' || q.sort === 'lowest') {
+  if (byScore) {
     const dir = q.sort === 'highest' ? -1 : 1;
-    items = items.sort((a, b) => ((a.moderatedScore ?? a.overallScore ?? -1) - (b.moderatedScore ?? b.overallScore ?? -1)) * dir);
+    items = items.sort((a, b) => ((a.moderatedScore ?? a.overallScore ?? -1) - (b.moderatedScore ?? b.overallScore ?? -1)) * dir).slice((q.page - 1) * q.pageSize, q.page * q.pageSize);
   }
   return { items, total, page: q.page, pageSize: q.pageSize };
 }
@@ -188,6 +190,8 @@ export function processingSteps(m: { status: string; processingLog: unknown; sub
 
   const steps: ProcessingStep[] = [];
   steps.push(mk('upload', 'Files uploaded', m.status === 'DRAFT' ? 'active' : 'done', null, iso(m.submittedAt)));
+  const d = last('documents');
+  steps.push(mk('documents', 'Reading supporting documents', !hasDocs ? 'skipped' : d?.state === 'done' ? 'done' : d?.state === 'failed' ? 'failed' : m.status === 'EXTRACTING' ? 'active' : 'pending', !hasDocs ? 'No documents were added' : d?.detail ?? null, d?.at ?? null));
   const t = last('transcript');
   steps.push(
     mk(
@@ -198,8 +202,6 @@ export function processingSteps(m: { status: string; processingLog: unknown; sub
       t?.at ?? null,
     ),
   );
-  const d = last('documents');
-  steps.push(mk('documents', 'Reading supporting documents', !hasDocs ? 'skipped' : d?.state === 'done' ? 'done' : d?.state === 'failed' ? 'failed' : m.status === 'EXTRACTING' ? 'active' : 'pending', !hasDocs ? 'No documents were added' : d?.detail ?? null, d?.at ?? null));
   const a = last('analysis');
   steps.push(mk('analysis', 'Reviewing against the criteria', m.status === 'READY' ? 'done' : a?.state === 'failed' || (m.status === 'FAILED' && !t?.state?.includes('failed')) ? 'failed' : m.status === 'ANALYSING' ? 'active' : 'pending', a?.detail ?? (m.status === 'ANALYSING' ? 'Usually 1-3 minutes.' : m.status === 'FAILED' ? m.failureReason : null), a?.at ?? null));
   steps.push(mk('ready', 'Report ready', m.status === 'READY' ? 'done' : 'pending', m.status === 'READY' ? 'Open the report below' : null, iso(m.completedAt)));
@@ -307,8 +309,10 @@ export async function reanalyseMeeting(user: AuthUser, meetingId: string) {
   if (!['READY', 'FAILED'].includes(m.status)) throw new BadRequestError('The meeting is still being processed');
   const transcript = await prisma.transcript.findUnique({ where: { meetingId } });
   const hasTranscript = transcript && asArray(transcript.segments).length > 0;
+  const newFiles = await prisma.meetingFile.count({ where: { meetingId, status: 'UPLOADED' } });
   await prisma.meeting.update({ where: { id: meetingId }, data: { status: 'QUEUED', failureReason: null } });
-  if (hasTranscript) await enqueueAnalyse({ meetingId, triggeredBy: user.id });
+  // New files (a replacement recording, a booklet added later) must be read first; otherwise go straight to the review.
+  if (hasTranscript && newFiles === 0) await enqueueAnalyse({ meetingId, triggeredBy: user.id });
   else await enqueueProcessMeeting({ meetingId, triggeredBy: user.id });
   audit({ actorId: user.id, action: 'meeting.reanalysed', entityType: 'meeting', entityId: meetingId });
   return getMeeting(user, meetingId);

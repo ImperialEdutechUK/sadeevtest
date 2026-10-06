@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ROLES } from '../roles.js';
+import { QueryBoolSchema } from './common.js';
 
 export const InviteUserSchema = z.object({
   email: z.email(),
@@ -35,7 +36,7 @@ export const UsersQuerySchema = z.object({
   role: z.enum(ROLES).optional(),
   departmentId: z.string().optional(),
   search: z.string().max(100).optional(),
-  includeInactive: z.coerce.boolean().optional(),
+  includeInactive: QueryBoolSchema,
 });
 
 export const DepartmentSchema = z.object({ id: z.string(), name: z.string() });

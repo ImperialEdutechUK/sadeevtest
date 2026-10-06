@@ -7,7 +7,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: 'What do I need to upload?',
     a: (
       <>
-        Either a <strong>recording</strong> of the meeting (MP4, M4A, MP3, WAV, WebM or MOV) or a <strong>transcript</strong> (the .vtt or .docx file Microsoft Teams produces, a .srt, or a plain text file). Optionally add the <strong>learner information booklet</strong> (PDF or Word) and the <strong>presentation</strong> used (PowerPoint or PDF) so the review can check personalisation and whether key slides were covered.
+        Either a <strong>recording</strong> of the meeting (MP4, M4A, MP3, WAV, WebM, MOV, OGG, FLAC or AMR) or a <strong>transcript</strong> (the .vtt or .docx file Microsoft Teams produces, a .srt, or a plain text file). Optionally add the <strong>learner information booklet</strong> (PDF or Word) and the <strong>presentation</strong> used (PowerPoint or PDF) so the review can check personalisation and whether key slides were covered.
       </>
     ),
   },
@@ -54,7 +54,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: 'Who can see my reports?',
-    a: 'You can see your own. Academic admins, academic managers, HR and directors can see everyone’s, according to their role. Every view of sensitive data is written to the audit log.',
+    a: 'You can see your own. Academic admins, academic managers, HR and directors can see everyone’s, according to their role. Uploads, downloads, moderations, exports, deletions and changes to criteria, roles and settings are written to the audit log.',
   },
   {
     q: 'How do competitions and KPIs work?',

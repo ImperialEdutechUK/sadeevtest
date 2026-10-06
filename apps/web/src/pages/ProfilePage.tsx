@@ -17,7 +17,7 @@ export function ProfilePage() {
   const [form, setForm] = useState({ firstName: '', lastName: '', jobTitle: '', bio: '', departmentId: '', avatarUrl: '', emailNotifications: true });
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (user) setForm({ firstName: user.firstName, lastName: user.lastName, jobTitle: user.jobTitle ?? '', bio: user.bio ?? '', departmentId: user.departmentId ?? '', avatarUrl: user.avatarUrl ?? '', emailNotifications: true });
+    if (user) setForm({ firstName: user.firstName, lastName: user.lastName, jobTitle: user.jobTitle ?? '', bio: user.bio ?? '', departmentId: user.departmentId ?? '', avatarUrl: user.avatarUrl ?? '', emailNotifications: user.emailNotifications ?? true });
   }, [user]);
   if (!user) return null;
 

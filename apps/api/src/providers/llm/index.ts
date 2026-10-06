@@ -14,7 +14,7 @@ export interface LlmResult {
 export interface LlmProvider {
   readonly name: 'openrouter' | 'mock';
   /** Return a chat completion. Implementations must throw on hard failures. */
-  complete(messages: LlmMessage[], opts?: { maxTokens?: number; temperature?: number; purpose?: string }): Promise<LlmResult>;
+  complete(messages: LlmMessage[], opts?: { maxTokens?: number; temperature?: number; purpose?: string; model?: string }): Promise<LlmResult>;
   defaultModel(): string;
 }
 

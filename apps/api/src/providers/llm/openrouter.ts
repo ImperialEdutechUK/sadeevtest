@@ -14,8 +14,9 @@ export class OpenRouterProvider implements LlmProvider {
     return this.cfg.OPENROUTER_MODEL;
   }
 
-  async complete(messages: LlmMessage[], opts: { maxTokens?: number; temperature?: number; purpose?: string } = {}): Promise<LlmResult> {
-    const models = [this.cfg.OPENROUTER_MODEL, this.cfg.OPENROUTER_FALLBACK_MODEL].filter(Boolean);
+  async complete(messages: LlmMessage[], opts: { maxTokens?: number; temperature?: number; purpose?: string; model?: string } = {}): Promise<LlmResult> {
+    const primary = opts.model?.trim() || this.cfg.OPENROUTER_MODEL;
+    const models = [...new Set([primary, this.cfg.OPENROUTER_FALLBACK_MODEL].filter(Boolean))];
     let lastError: unknown = null;
     for (const model of models) {
       for (let attempt = 1; attempt <= 3; attempt++) {
