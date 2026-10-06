@@ -22,3 +22,6 @@ test-results/
 
 # Keep example env files for compose
 !infra/.env.compose.example
+
+# TypeScript incremental build state
+*.tsbuildinfo
