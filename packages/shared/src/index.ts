@@ -4,6 +4,7 @@ export * from './constants.js';
 export * from './scoring.js';
 export * from './analysisOutput.js';
 export * from './presetRubric.js';
+export * from './presetRubricSlc.js';
 export * from './schemas/common.js';
 export * from './schemas/auth.js';
 export * from './schemas/users.js';

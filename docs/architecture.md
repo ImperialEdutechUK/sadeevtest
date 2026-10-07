@@ -61,7 +61,8 @@ The web app and the API share one hostname in production: CloudFront forwards `/
 |   +-- constants.ts        upload limits, accepted extensions, MIME map, SCORE_SCALE_MAX (5), DEFAULT_GRADE_BANDS, PROMPT_VERSION
 |   +-- scoring.ts          computeOverallScore(), gradeFor(), computeTranscriptMetrics(), formatTimestamp()
 |   +-- analysisOutput.ts   Zod schema for the JSON the language model must return (AnalysisOutputSchema, AppraisalNarrativeSchema)
-|   +-- presetRubric.ts     the preset "Learner induction meeting (UK further education)" criteria set with framework references
+|   +-- presetRubric.ts     the generic "Learner induction meeting (UK further education)" preset and the PRESET_RUBRICS list
+|   +-- presetRubricSlc.ts  the default "Online learner induction (South London College)" preset (see docs/induction-criteria-review.md)
 |   +-- schemas/*.ts        request/response schemas: auth, users, rubrics, meetings, analysis, performance, dashboard, settings, common
 |   +-- scoring.test.ts     vitest unit tests
 +-- apps/api

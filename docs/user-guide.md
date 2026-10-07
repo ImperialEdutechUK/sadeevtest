@@ -169,7 +169,7 @@ In step 1 of the upload wizard you have an extra field, **Tutor who led the meet
 
 ![The criteria set editor](screenshots/13-criteria-editor.png)
 
-**Criteria** in the left-hand menu lists the criteria sets. The college starts with the preset "Learner induction meeting (UK further education)", marked **Preset** and **Default**. Each card shows the meeting type it is for, the number of criteria and groups, and the version number.
+**Criteria** in the left-hand menu lists the criteria sets. The college starts with two presets: "South London College online academic induction (Mentor-led, group or one-to-one)" (marked **Preset** and **Default**; the enhanced set described in `induction-criteria-review.md`) and the generic "Learner induction meeting (UK further education)", marked **Preset** only. Each card shows the meeting type it is for, the number of criteria and groups, and the version number.
 
 Good practice is to **Make a copy** of the preset, edit the copy and then make it the default, so the original stays available for reference. You can also edit the preset directly. Editing a set creates a new version; reports already produced keep the version they were scored against, so historical scores never change.
 

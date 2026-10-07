@@ -5,13 +5,14 @@
  *
  * Safe to run repeatedly: existing records are left alone.
  */
-import { computeOverallScore, computeTranscriptMetrics, gradeFor, type GradeBand, type TranscriptSegment } from '@slc/shared';
+import { SLC_INDUCTION_PRESET_RUBRIC, computeOverallScore, computeTranscriptMetrics, gradeFor, type GradeBand, type TranscriptSegment } from '@slc/shared';
 import { loadConfig } from '../config.js';
 import { prisma } from '../db.js';
 import { hashPassword } from '../lib/password.js';
 import { logger } from '../logger.js';
 import { ensurePresetRubrics } from '../services/rubrics.service.js';
 import { SAMPLE_TRANSCRIPT_SEGMENTS } from './sampleTranscript.js';
+import { SAMPLE_ONLINE_TRANSCRIPT_SEGMENTS } from './sampleTranscriptOnline.js';
 
 const cfg = loadConfig();
 
@@ -53,24 +54,31 @@ async function main() {
   }
 
   logger.info('seeding: demo departments and staff');
-  const depts = await Promise.all(['Health and Social Care', 'Business and Professional', 'Construction and Engineering', 'English and Maths'].map((name) => prisma.department.upsert({ where: { name }, create: { name }, update: {} })));
+  const depts = await Promise.all(['Health and Social Care', 'Business, IT and Law', 'Education and Training', 'Childcare and Early Years'].map((name) => prisma.department.upsert({ where: { name }, create: { name }, update: {} })));
   const pw = 'Demo-Pass-2026';
   const manager = await upsertUser({ email: 'amira.hassan@demo.slc.ac.uk', firstName: 'Amira', lastName: 'Hassan', role: 'ACADEMIC_MANAGER', jobTitle: 'Head of Quality', departmentId: depts[0].id, password: pw });
   await upsertUser({ email: 'tom.bennett@demo.slc.ac.uk', firstName: 'Tom', lastName: 'Bennett', role: 'ACADEMIC_ADMIN', jobTitle: 'Academic administrator', departmentId: depts[1].id, password: pw });
   await upsertUser({ email: 'grace.whitfield@demo.slc.ac.uk', firstName: 'Grace', lastName: 'Whitfield', role: 'HR', jobTitle: 'HR business partner', password: pw });
   await upsertUser({ email: 'james.oconnor@demo.slc.ac.uk', firstName: 'James', lastName: "O'Connor", role: 'DIRECTOR', jobTitle: 'Director of Curriculum', password: pw });
   const tutors = await Promise.all([
-    upsertUser({ email: 'daniel.okafor@demo.slc.ac.uk', firstName: 'Daniel', lastName: 'Okafor', role: 'TUTOR', jobTitle: 'Lecturer, Health and Social Care', departmentId: depts[0].id, password: pw, bio: 'Teaching Level 2 and 3 Health and Social Care since 2019.' }),
-    upsertUser({ email: 'sophie.clarke@demo.slc.ac.uk', firstName: 'Sophie', lastName: 'Clarke', role: 'TUTOR', jobTitle: 'Lecturer, Business', departmentId: depts[1].id, password: pw }),
-    upsertUser({ email: 'ravi.patel@demo.slc.ac.uk', firstName: 'Ravi', lastName: 'Patel', role: 'TUTOR', jobTitle: 'Lecturer, Engineering', departmentId: depts[2].id, password: pw }),
-    upsertUser({ email: 'chloe.adams@demo.slc.ac.uk', firstName: 'Chloe', lastName: 'Adams', role: 'TUTOR', jobTitle: 'Lecturer, Health and Social Care', departmentId: depts[0].id, password: pw }),
-    upsertUser({ email: 'marcus.reid@demo.slc.ac.uk', firstName: 'Marcus', lastName: 'Reid', role: 'TUTOR', jobTitle: 'Lecturer, Maths', departmentId: depts[3].id, password: pw }),
+    upsertUser({ email: 'daniel.okafor@demo.slc.ac.uk', firstName: 'Daniel', lastName: 'Okafor', role: 'TUTOR', jobTitle: 'Mentor, Health and Social Care', departmentId: depts[0].id, password: pw, bio: 'Mentoring Level 3 to 5 Health and Social Care learners since 2019.' }),
+    upsertUser({ email: 'sophie.clarke@demo.slc.ac.uk', firstName: 'Sophie', lastName: 'Clarke', role: 'TUTOR', jobTitle: 'Mentor, Business and Law', departmentId: depts[1].id, password: pw }),
+    upsertUser({ email: 'ravi.patel@demo.slc.ac.uk', firstName: 'Ravi', lastName: 'Patel', role: 'TUTOR', jobTitle: 'Mentor, Education and Training', departmentId: depts[2].id, password: pw }),
+    upsertUser({ email: 'chloe.adams@demo.slc.ac.uk', firstName: 'Chloe', lastName: 'Adams', role: 'TUTOR', jobTitle: 'Mentor, Adult Care', departmentId: depts[0].id, password: pw }),
+    upsertUser({ email: 'marcus.reid@demo.slc.ac.uk', firstName: 'Marcus', lastName: 'Reid', role: 'TUTOR', jobTitle: 'Mentor, Childcare and Early Years', departmentId: depts[3].id, password: pw }),
   ]);
 
   logger.info('seeding: demo meetings and reports');
   const rand = seededRandom(42);
-  const programmes = ['Level 3 Diploma in Health and Social Care', 'Level 2 Business Administration', 'Level 3 Engineering', 'GCSE Maths resit', 'Level 2 Health and Social Care'];
+  const programmes = [
+    'NCFE CACHE Level 5 Diploma in Leadership for Health and Social Care and CYP Services',
+    'ATHE Level 3 Diploma in Law',
+    'Qualifi Level 3 Award in Education and Training',
+    'NCFE CACHE Level 5 Diploma in Leading and Managing an Adult Care Service',
+    'NCFE CACHE Level 5 Diploma for the Early Years Senior Practitioner',
+  ];
   const bands = rubric.gradeBands as GradeBand[];
+  const materialsCode = rubric.name === SLC_INDUCTION_PRESET_RUBRIC.name ? 'F4' : 'F2';
   const criteria = rubric.criteria;
   let meetingIndex = 0;
   for (const [ti, tutor] of tutors.entries()) {
@@ -81,8 +89,9 @@ async function main() {
       const daysAgo = Math.floor(rand() * 150) + 2;
       const meetingDate = new Date(Date.now() - daysAgo * 86_400_000);
       const learnerRef = `L${String(10000 + meetingIndex * 37).padStart(5, '0')}`;
-      const segments: TranscriptSegment[] = SAMPLE_TRANSCRIPT_SEGMENTS.map((s) => ({ ...s }));
-      const speakerMap = { spk_0: 'TUTOR' as const, spk_1: 'LEARNER' as const };
+      const sample = rubric.name === SLC_INDUCTION_PRESET_RUBRIC.name ? SAMPLE_ONLINE_TRANSCRIPT_SEGMENTS : SAMPLE_TRANSCRIPT_SEGMENTS;
+      const segments: TranscriptSegment[] = sample.map((s) => ({ ...s }));
+      const speakerMap = Object.fromEntries([...new Set(segments.map((seg) => seg.speaker))].map((spk) => [spk, spk === 'spk_0' ? ('TUTOR' as const) : ('LEARNER' as const)]));
       const metrics = computeTranscriptMetrics(segments, speakerMap);
       const meeting = await prisma.meeting.create({
         data: {
@@ -100,7 +109,7 @@ async function main() {
           submittedAt: meetingDate,
           completedAt: new Date(meetingDate.getTime() + 20 * 60_000),
           processingLog: [
-            { step: 'transcript', state: 'done', detail: `${segments.length} lines, 2 speaker labels (demo data)`, at: meetingDate.toISOString() },
+            { step: 'transcript', state: 'done', detail: `${segments.length} lines, ${Object.keys(speakerMap).length} speaker labels (demo data)`, at: meetingDate.toISOString() },
             { step: 'analysis', state: 'done', detail: `Scored ${criteria.length} criteria (demo data)`, at: new Date(meetingDate.getTime() + 20 * 60_000).toISOString() },
           ],
           transcript: { create: { source: 'MOCK', language: 'en-GB', segments: segments as never, speakerMap: speakerMap as never, wordCount: metrics.totalWords } },
@@ -110,7 +119,7 @@ async function main() {
       const scored = criteria.map((c) => {
         const base = skill * 5 + (rand() - 0.5) * 2.2;
         const score = Math.max(1, Math.min(5, Math.round(base)));
-        const notApplicable = c.code === 'F2';
+        const notApplicable = c.code === materialsCode;
         return { c, score: notApplicable ? null : score, notApplicable };
       });
       const result = computeOverallScore(scored.map((s) => ({ criterionId: s.c.id, weight: s.c.weight, isMandatory: s.c.isMandatory, score: s.score, notApplicable: s.notApplicable })));

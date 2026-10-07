@@ -9,6 +9,7 @@ import {
   TRANSCRIPT_BLOCK_END,
   TRANSCRIPT_BLOCK_START,
 } from './prompts.js';
+import { INDUCTION_PRESET_RUBRIC, SLC_INDUCTION_PRESET_RUBRIC } from '@slc/shared';
 
 /**
  * Mock language model for local development and demos (LLM_PROVIDER=mock).
@@ -18,6 +19,7 @@ import {
  */
 
 interface PromptRubric {
+  name?: string;
   categories: { name: string; criteria: { code: string; title: string; mandatory: boolean; descriptors: Record<string, string> }[] }[];
 }
 interface Line {
@@ -26,7 +28,13 @@ interface Line {
   text: string;
 }
 
-const KEYWORDS: Record<string, string[]> = {
+/**
+ * Keyword cues per preset (by rubric name, then criterion code). Codes are
+ * reused across presets with different meanings, so the map is keyed by the
+ * rubric name first. A custom or renamed rubric falls back to the words of
+ * each criterion's title.
+ */
+const GENERIC_KEYWORDS: Record<string, string[]> = {
   A1: ['i am', 'my name', 'your course tutor', 'nice to meet', 'said that right'],
   A2: ['induction meeting', 'take about', 'go through', 'cover today', 'purpose'],
   A3: ['tell me', 'how do you feel', 'what do you', 'does that sound', 'make sense'],
@@ -49,10 +57,63 @@ const KEYWORDS: Record<string, string[]> = {
   F4: ['summarise', 'summary', 'we have agreed', 'last questions', 'next steps', 'see you'],
 };
 
-const PENALTY_KEYWORDS: Record<string, { missing: string[]; note: string }> = {
+const SLC_KEYWORDS: Record<string, string[]> = {
+  A1: ['being recorded', 'recorded', 'hear me', 'shared screen', 'privacy notice'],
+  A2: ['i am amara', 'your mentor', 'introductions', 'pronounced your name', 'hope to achieve'],
+  A3: ['purpose of today', 'forty five minutes', 'we will cover', 'raise hand', 'interrupt me'],
+  B1: ['right course', 'pathway', 'expert witness', 'deputy manager or manager', 'observation of your practice'],
+  B2: ['pre-course learner profile', 'prior learning', 'initial assessment', 'level 3 in', 'experience counts'],
+  B3: ['english, maths and digital', 'writing guides', 'first draft', 'english is not good'],
+  B4: ['adjustments', 'disability', 'health condition', 'extra time', 'assistive software'],
+  B5: ['hours a week', 'realistic week', 'plan for', 'children at home', 'review it at our first check-in'],
+  C1: ['nine hundred hours', 'guided learning', 'ninety credits', 'regulated by ofqual', 'twelve months of access'],
+  C2: ['shared core units', 'mandatory units', 'optional units', 'achieved or not yet achieved', 'learning outcomes'],
+  C3: ['written assignments', 'feedback within fourteen days', 'word document', 'file name', 'resubmission'],
+  C4: ['peel', 'report structure', 'harvard', 'reference list', 'paragraph'],
+  C5: ['academic integrity', 'plagiarism', 'malpractice', 'collusion', 'ai tool'],
+  C6: ['progression', 'registered manager roles', 'degree top-up', 'level 6', 'nearer the time'],
+  D1: ['learner portal', 'dashboard', 'getting started', 'fourteen days of today', 'documents tab'],
+  D2: ['laptop or a phone', 'online version of word', 'internet connection', 'technical support', 'captions'],
+  D3: ['named mentor', 'two working days', 'whatsapp', 'learner forum', 'booking a call'],
+  D4: ['falling behind', 'go quiet', 'three weeks', 'extensions are possible', 'tell me early'],
+  E1: ['safeguarding', 'designated safeguarding lead', 'concern about', 'prevent', 'british values'],
+  E2: ['wellbeing service', 'mental health', 'counselling', 'helpline', 'samaritans'],
+  E3: ['equality, diversity and inclusion', 'treated fairly', 'respectful language', 'treated unfairly'],
+  E4: ['appeals procedure', 'complain', 'awarding organisation', 'approved centre', 'learner agreement'],
+  F1: ['does that', 'make sense', 'good question', 'is that right', 'anything from you'],
+  F2: ['in practice it means', 'which means', 'that is', 'for example', 'roughly'],
+  F3: ['tomasz', 'grace', 'for you the', 'you said', 'you mentioned'],
+  F4: ['on screen', 'let me show you', 'share the learner portal', 'this is your dashboard', 'title slide'],
+  F5: ['first,', 'now,', 'which brings me to', 'let me summarise', 'one last thing'],
+  F6: ['everyone', 'you can tell me now or privately', 'stays within', 'thank you for saying that'],
+  G1: ['summarise what we have agreed', 'check-in call', 'in two weeks', 'have i missed anything', 'first action'],
+  G2: ['feedback survey', 'complete it honestly', 'good or bad', 'raise anything about the course'],
+};
+
+const KEYWORDS_BY_RUBRIC: Record<string, Record<string, string[]>> = {
+  [INDUCTION_PRESET_RUBRIC.name]: GENERIC_KEYWORDS,
+  [SLC_INDUCTION_PRESET_RUBRIC.name]: SLC_KEYWORDS,
+};
+
+/** The criterion in each preset that cannot be judged without slides or a booklet. */
+const MATERIALS_CRITERION_BY_RUBRIC: Record<string, string> = {
+  [INDUCTION_PRESET_RUBRIC.name]: 'F2',
+  [SLC_INDUCTION_PRESET_RUBRIC.name]: 'F4',
+};
+
+const GENERIC_PENALTIES: Record<string, { missing: string[]; note: string }> = {
   D1: { missing: ['prevent', 'british values'], note: 'The Prevent duty and British values were not explained.' },
   D4: { missing: ['complaint', 'appeal'], note: 'The complaints and appeals process was not mentioned.' },
   C4: { missing: ['by when', 'measurable', 'smart'], note: 'Targets were agreed in broad terms but were not fully specific or time-bound.' },
+};
+const SLC_PENALTIES: Record<string, { missing: string[]; note: string }> = {
+  E1: { missing: ['prevent', 'british values'], note: 'Prevent and British values were not explained.' },
+  E4: { missing: ['complain'], note: 'The complaints route was not explained (only appeals).' },
+  C6: { missing: ['careers', 'skills for care', 'job'], note: 'Progression was covered in general terms; careers guidance was not linked to each learner\'s goal.' },
+};
+const PENALTIES_BY_RUBRIC: Record<string, Record<string, { missing: string[]; note: string }>> = {
+  [INDUCTION_PRESET_RUBRIC.name]: GENERIC_PENALTIES,
+  [SLC_INDUCTION_PRESET_RUBRIC.name]: SLC_PENALTIES,
 };
 
 function hashInt(s: string): number {
@@ -109,6 +170,9 @@ export class MockLlmProvider implements LlmProvider {
     speakers.forEach((s, i) => (speakerRoles[s] = i === 0 ? 'TUTOR' : i === 1 ? 'LEARNER' : 'OTHER'));
     const tutorLabel = speakers[0];
 
+    const KEYWORDS = KEYWORDS_BY_RUBRIC[rubric.name ?? ''] ?? {};
+    const PENALTY_KEYWORDS = PENALTIES_BY_RUBRIC[rubric.name ?? ''] ?? {};
+    const materialsCode = MATERIALS_CRITERION_BY_RUBRIC[rubric.name ?? ''];
     const criteria: AnalysisOutput['criteria'] = [];
     const strengths: string[] = [];
     const improvements: string[] = [];
@@ -122,7 +186,7 @@ export class MockLlmProvider implements LlmProvider {
         let rationale: string;
         let suggestion: string | null = null;
 
-        if (c.code === 'F2' && !presentationProvided) {
+        if (c.code === materialsCode && !presentationProvided) {
           score = null;
           notApplicable = true;
           rationale = 'No presentation or booklet was provided with this meeting, so use of materials could not be assessed.';

@@ -1,5 +1,6 @@
 import { DEFAULT_GRADE_BANDS } from './constants.js';
 import type { MeetingType } from './enums.js';
+import { SLC_INDUCTION_PRESET_RUBRIC } from './presetRubricSlc.js';
 
 /**
  * The preset "Learner induction meeting" rubric.
@@ -404,4 +405,10 @@ export const INDUCTION_PRESET_RUBRIC: PresetRubric = {
   ],
 };
 
-export const PRESET_RUBRICS: PresetRubric[] = [INDUCTION_PRESET_RUBRIC];
+/**
+ * All presets installed by the API on start-up. The South London College
+ * preset is flagged as the default for induction meetings; the generic UK
+ * further-education preset is kept for comparison and for colleges with
+ * campus-based, timetabled provision.
+ */
+export const PRESET_RUBRICS: PresetRubric[] = [SLC_INDUCTION_PRESET_RUBRIC, INDUCTION_PRESET_RUBRIC];

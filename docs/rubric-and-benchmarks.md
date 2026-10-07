@@ -6,7 +6,11 @@ This document explains what the system measures, where the preset criteria come 
 
 The system assesses **the tutor's conduct of a one-to-one meeting with a learner**, not the learner. For an induction meeting that means: did the tutor welcome the learner properly, explain the programme, find out about the learner's starting point and needs, cover the safeguarding and compliance essentials, give useful information and guidance, and communicate clearly and personally.
 
-## 2. The preset criteria set
+## 2. The preset criteria sets
+
+Two presets are installed. The default for induction meetings is **South London College online academic induction (Mentor-led, group or one-to-one)**: 7 groups, 30 criteria, 13 essential, designed from the college's own mentor guidelines, evaluation form and induction deck, the profile of the learners the college enrols, and published UK practice. Its full rationale, the concerns found in the current materials and every source are in `induction-criteria-review.md`. The generic preset below is kept for comparison and for campus-based provision.
+
+### 2a. The generic preset
 
 The preset set "Learner induction meeting (UK further education)" has 20 criteria in six groups. It is defined in `packages/shared/src/presetRubric.ts` and seeded into the database on first start. It is fully editable in the app (Criteria screen); editing creates a new version and earlier reports keep the version they were scored with.
 
