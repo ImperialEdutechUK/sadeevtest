@@ -1,0 +1,18 @@
+{
+  "name": "slc-meeting-review",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Meeting Review - AI-assisted quality review of tutor-learner meetings for South London College",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=20.0.0" },
+  "scripts": {
+    "dev": "pnpm -r --parallel --stream dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "db:migrate": "pnpm --filter @slc/api db:migrate",
+    "db:seed": "pnpm --filter @slc/api db:seed",
+    "db:reset": "pnpm --filter @slc/api db:reset"
+  }
+}

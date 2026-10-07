@@ -1,0 +1,96 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Brand: South London College teal (#0aa4bd) and green (#00a56f), measured from southlondoncollege.org.
+     500 is the site's header teal; 700 is the site's dark teal and is the darkest shade that
+     keeps white text at WCAG AA (4.7:1). Change these ramps to re-skin the app. */
+  --color-brand-50: #f2fbff;
+  --color-brand-100: #dff6fb;
+  --color-brand-200: #b5e6ef;
+  --color-brand-300: #7fd1e0;
+  --color-brand-400: #3fbbd0;
+  --color-brand-500: #0aa4bd;
+  --color-brand-600: #088ea4;
+  --color-brand-700: #087f8f;
+  --color-brand-800: #0a5f6b;
+  --color-brand-900: #0b4650;
+
+  --color-accent-100: #d2fff0;
+  --color-accent-300: #9dd8c3;
+  --color-accent-500: #00a56f;
+  --color-accent-600: #008c5e;
+  --color-accent-700: #00704b;
+
+  /* Grade bands (validated for colour-vision deficiency; always shown with a label). */
+  --color-grade-excellent: #1b7f3b;
+  --color-grade-good: #2a78d6;
+  --color-grade-developing: #eda100;
+  --color-grade-support: #e34948;
+
+  /* Chart series. Series 1 is the brand teal (4.7:1 on white) so "the college's own number" never shares a colour
+     with the blue 'Good' grade band; series 2 is orange for comparisons (validated pair, CVD-safe). */
+  --color-series-1: #088ea4;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+
+  --radius-xl: 14px;
+  --radius-2xl: 20px;
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.06);
+  --shadow-pop: 0 10px 30px -10px rgb(16 24 40 / 0.25);
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-slate-50 text-slate-800;
+  }
+  /* Focus indicator: 4.7:1 on white (WCAG 1.4.11); inside dark brand panels a light ring (5.4:1) is used instead. */
+  :focus-visible {
+    outline: 3px solid var(--color-brand-700);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  .bg-brand-800 :focus-visible,
+  .bg-brand-900 :focus-visible {
+    outline-color: var(--color-brand-200);
+  }
+  ::selection {
+    background: var(--color-brand-100);
+  }
+  h1, h2, h3, h4 {
+    @apply font-semibold tracking-tight text-slate-900;
+  }
+}
+
+@layer utilities {
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-[var(--shadow-card)];
+  }
+  .link {
+    @apply font-medium text-brand-700 underline-offset-2 hover:underline;
+  }
+  .muted {
+    @apply text-sm text-slate-500;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+}
+
+/* Print: reports become clean A4 documents. */
+@media print {
+  @page { margin: 14mm; }
+  body { background: white !important; }
+  .no-print, nav, aside, header.app-topbar { display: none !important; }
+  .print-only { display: block !important; }
+  .print-expand { display: block !important; }
+  .card { box-shadow: none !important; break-inside: avoid; }
+  a { text-decoration: none; color: inherit; }
+  main { padding: 0 !important; max-width: none !important; }
+}
+.print-only { display: none; }

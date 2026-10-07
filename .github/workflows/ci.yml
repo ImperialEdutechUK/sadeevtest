@@ -1,0 +1,106 @@
+# ---------------------------------------------------------------------------
+# CI - typecheck, test and build the monorepo, and verify the API image builds.
+#
+# Required GitHub secrets:   none
+# Required GitHub variables: none
+# ---------------------------------------------------------------------------
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Typecheck, test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: meeting_review
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d meeting_review"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/meeting_review
+      # Build-time settings for the web app (CI only; real values are set in deploy-web.yml)
+      VITE_API_BASE_URL: /api
+      VITE_APP_NAME: Meeting Review
+      VITE_COLLEGE_NAME: South London College
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm (version from package.json "packageManager")
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package
+        # api and web consume @slc/shared from its dist folder
+        run: pnpm --filter @slc/shared build
+
+      - name: Apply database migrations
+        run: |
+          if [ -d apps/api/prisma/migrations ]; then
+            pnpm --filter @slc/api db:migrate
+          else
+            echo "No migrations directory yet - skipping"
+          fi
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  docker-api:
+    name: Build API image (no push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          tags: meeting-review-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

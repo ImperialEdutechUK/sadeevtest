@@ -1,0 +1,301 @@
+# ---------------------------------------------------------------------------
+# Deploy (serverless) - the pay-per-request hosting profile.
+#
+# Deploys the whole application created by infra/terraform-serverless in one
+# run: database migrations, the three Lambda functions (API, worker, scheduled)
+# and the SPA in S3 + CloudFront. There is no container image, no ECS service
+# and no load balancer in this profile; the fixed monthly cost is cents.
+#
+# Use EITHER this workflow OR deploy-api.yml + deploy-web.yml, never both: all
+# three run on pushes to main. Disable the ones you do not use in the Actions
+# tab (workflow -> "..." -> Disable workflow). See docs/deployment-aws.md,
+# section "Pay-per-request profile (cents per month)".
+#
+# Required GitHub secrets:
+#   AWS_DEPLOY_ROLE_ARN      IAM role assumed via OIDC
+#                            (terraform output -raw github_deploy_role_arn in infra/terraform-serverless)
+#   DATABASE_URL             PostgreSQL connection string used to run Prisma migrations and the seed
+#                            from this runner. The Prisma CLI is not bundled into the Lambda zip, so
+#                            migrations run here, over the internet, with TLS (append ?sslmode=require
+#                            if the provider does not force it). Same value as the SSM parameter
+#                            /meeting-review/<env>/DATABASE_URL:
+#                              external mode : the URL of your managed Postgres (e.g. Neon)
+#                              aurora mode   : aws ssm get-parameter --with-decryption \
+#                                                --name /meeting-review/prod/DATABASE_URL \
+#                                                --query Parameter.Value --output text
+#
+# Secrets needed only when "Run workflow" is started with run_seed = true:
+#   SEED_ADMIN_EMAIL         e-mail address of the first system administrator
+#   SEED_ADMIN_PASSWORD      their initial password (change it after the first sign-in)
+#
+# Required GitHub variables (terraform output github_variables prints all of them):
+#   LAMBDA_API_NAME          Lambda function behind /api/* (handler api.handler)
+#   LAMBDA_WORKER_NAME       Lambda function consuming the SQS job queue (worker.handler)
+#   LAMBDA_SCHEDULED_NAME    Lambda function run nightly by EventBridge Scheduler (scheduled.handler)
+#   WEB_BUCKET               S3 bucket that holds the built SPA
+#   CLOUDFRONT_DISTRIBUTION_ID  distribution to invalidate after the web upload
+#
+# Optional GitHub variables:
+#   AWS_REGION               default eu-west-2 (London)
+#   VITE_APP_NAME            default "Meeting Review"
+#   VITE_COLLEGE_NAME        default "South London College"
+#   VITE_LOGO_URL            default "/slc-logo.png" (a file in apps/web/public or an absolute URL)
+#   SEED_DEMO_DATA           default "false"; "true" also creates demo tutors, meetings and reports
+#                            (for evaluation only, never on a live system)
+#
+# VITE_API_BASE_URL is always "/api" in this profile: CloudFront routes
+# https://<domain>/api/* to the API Lambda's function URL and the API rejects
+# requests that do not arrive through CloudFront (X-Origin-Verify header).
+#
+# How a deploy works:
+#   1. Install the monorepo, build @slc/shared and generate the Prisma client.
+#   2. Run `prisma migrate deploy` against DATABASE_URL (retried: an Aurora
+#      Serverless v2 cluster scaled to 0 ACU needs ~15 s to resume).
+#   3. Optionally seed the first administrator (workflow_dispatch + run_seed).
+#   4. Bundle the Lambda entry points with esbuild (apps/api/lambda-dist), zip
+#      them and `aws lambda update-function-code` on the three functions.
+#      Terraform owns the functions' configuration (memory, timeout, environment
+#      from SSM); this workflow only ever replaces their code.
+#   5. Build the SPA and sync it to S3 (hashed assets cached for a year,
+#      index.html never cached), then invalidate CloudFront.
+# ---------------------------------------------------------------------------
+name: Deploy (serverless)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "infra/terraform-serverless/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-serverless.yml"
+  workflow_dispatch:
+    inputs:
+      run_seed:
+        description: "Seed the first administrator (needs secrets SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD). Safe to re-run; existing users are left alone."
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-serverless
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC token for AWS
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-2' }}
+  LAMBDA_API_NAME: ${{ vars.LAMBDA_API_NAME }}
+  LAMBDA_WORKER_NAME: ${{ vars.LAMBDA_WORKER_NAME }}
+  LAMBDA_SCHEDULED_NAME: ${{ vars.LAMBDA_SCHEDULED_NAME }}
+  WEB_BUCKET: ${{ vars.WEB_BUCKET }}
+  CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+  # Build-time settings baked into the SPA
+  VITE_API_BASE_URL: /api
+  VITE_APP_NAME: ${{ vars.VITE_APP_NAME || 'Meeting Review' }}
+  VITE_COLLEGE_NAME: ${{ vars.VITE_COLLEGE_NAME || 'South London College' }}
+  VITE_LOGO_URL: ${{ vars.VITE_LOGO_URL || '/slc-logo.png' }}
+  # Where the zipped Lambda bundle is written (outside the repo checkout)
+  LAMBDA_ZIP: ${{ github.workspace }}/lambda-dist.zip
+
+jobs:
+  deploy:
+    name: Migrate, deploy Lambdas and publish web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check configuration
+        env:
+          HAS_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN != '' }}
+          HAS_DATABASE_URL: ${{ secrets.DATABASE_URL != '' }}
+          HAS_SEED_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL != '' }}
+          HAS_SEED_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD != '' }}
+          RUN_SEED: ${{ github.event_name == 'workflow_dispatch' && inputs.run_seed }}
+        run: |
+          missing=0
+          for v in LAMBDA_API_NAME LAMBDA_WORKER_NAME LAMBDA_SCHEDULED_NAME WEB_BUCKET CLOUDFRONT_DISTRIBUTION_ID; do
+            if [ -z "${!v}" ]; then echo "::error::Repository variable $v is not set"; missing=1; fi
+          done
+          if [ "$HAS_ROLE_ARN" != "true" ]; then echo "::error::Secret AWS_DEPLOY_ROLE_ARN is not set"; missing=1; fi
+          if [ "$HAS_DATABASE_URL" != "true" ]; then echo "::error::Secret DATABASE_URL is not set (needed to run migrations)"; missing=1; fi
+          if [ "$RUN_SEED" = "true" ]; then
+            if [ "$HAS_SEED_EMAIL" != "true" ]; then echo "::error::run_seed was requested but secret SEED_ADMIN_EMAIL is not set"; missing=1; fi
+            if [ "$HAS_SEED_PASSWORD" != "true" ]; then echo "::error::run_seed was requested but secret SEED_ADMIN_PASSWORD is not set"; missing=1; fi
+          fi
+          exit $missing
+
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm (version from package.json "packageManager")
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package
+        # api and web consume @slc/shared from its dist folder
+        run: pnpm --filter @slc/shared build
+
+      - name: Generate Prisma client
+        # The seed script imports the generated client; build:lambda regenerates it anyway.
+        run: pnpm --filter @slc/api db:generate
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: github-deploy-serverless-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ----------------------------------------------------------------------
+      # Database
+      # ----------------------------------------------------------------------
+      - name: Apply database migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # Retried because an Aurora Serverless v2 cluster at 0 ACU (or a paused
+        # free-tier Postgres) refuses the first connection while it resumes.
+        run: |
+          for attempt in 1 2 3 4; do
+            if pnpm --filter @slc/api db:migrate; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 4 ]; then
+              echo "Migration attempt $attempt failed - the database may still be resuming; retrying in 20 s"
+              sleep 20
+            fi
+          done
+          echo "::error::Database migrations failed after 4 attempts"
+          exit 1
+
+      - name: Seed the first administrator
+        if: github.event_name == 'workflow_dispatch' && inputs.run_seed
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+          SEED_DEMO_DATA: ${{ vars.SEED_DEMO_DATA || 'false' }}
+          # The seed only hashes passwords, but the API config loader insists on
+          # these two being present. They are NOT the values the Lambdas use.
+          JWT_SECRET: seed-only-placeholder-not-used-by-the-seed
+          COOKIE_SECRET: seed-only-placeholder-not-used-by-the-seed
+          NODE_ENV: production
+          LOG_LEVEL: info
+        run: pnpm --filter @slc/api db:seed
+
+      # ----------------------------------------------------------------------
+      # Lambda functions
+      # ----------------------------------------------------------------------
+      - name: Build Lambda bundle
+        # prisma generate + esbuild -> apps/api/lambda-dist/{api,worker,scheduled}.mjs + package.json
+        run: pnpm --filter @slc/api build:lambda
+
+      - name: Zip Lambda bundle
+        # cd into the folder so api.mjs etc. sit at the zip root (the handlers are "api.handler", ...).
+        run: |
+          rm -f "$LAMBDA_ZIP"
+          (cd apps/api/lambda-dist && zip -r -q -X "$LAMBDA_ZIP" .)
+          unzip -l "$LAMBDA_ZIP"
+          size=$(stat -c %s "$LAMBDA_ZIP")
+          echo "Bundle size: $((size / 1024 / 1024)) MiB"
+          # Direct uploads are limited to 50 MB; larger bundles must go via S3 (not expected here -
+          # the AWS SDK is kept external because the nodejs22.x runtime already ships it).
+          if [ "$size" -gt 52428800 ]; then
+            echo "::error::lambda-dist.zip is larger than 50 MB and cannot be uploaded directly"
+            exit 1
+          fi
+
+      - name: Update Lambda function code
+        # The response of update-function-code includes the function's environment
+        # (secrets!), so only a few fields are printed.
+        run: |
+          for fn in "$LAMBDA_API_NAME" "$LAMBDA_WORKER_NAME" "$LAMBDA_SCHEDULED_NAME"; do
+            echo "Updating $fn"
+            aws lambda update-function-code \
+              --function-name "$fn" \
+              --zip-file "fileb://$LAMBDA_ZIP" \
+              --query '{Function:FunctionName,Runtime:Runtime,CodeSha256:CodeSha256,Status:LastUpdateStatus}' \
+              --output table
+          done
+
+      - name: Wait for the functions to finish updating
+        run: |
+          failed=0
+          for fn in "$LAMBDA_API_NAME" "$LAMBDA_WORKER_NAME" "$LAMBDA_SCHEDULED_NAME"; do
+            aws lambda wait function-updated --function-name "$fn"
+            status=$(aws lambda get-function-configuration --function-name "$fn" \
+              --query 'LastUpdateStatus' --output text)
+            reason=$(aws lambda get-function-configuration --function-name "$fn" \
+              --query 'LastUpdateStatusReason' --output text)
+            echo "$fn: $status"
+            if [ "$status" != "Successful" ]; then
+              echo "::error::$fn did not update successfully: $reason"
+              failed=1
+            fi
+          done
+          exit $failed
+
+      # ----------------------------------------------------------------------
+      # Web app
+      # ----------------------------------------------------------------------
+      - name: Build web app
+        run: pnpm --filter @slc/web build
+
+      - name: Upload hashed assets (long cache)
+        # Vite writes content-hashed files under dist/assets - safe to cache for a year.
+        run: |
+          aws s3 sync apps/web/dist/assets "s3://$WEB_BUCKET/assets" \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable"
+
+      - name: Upload other static files (short cache)
+        # favicons, logo, manifest, robots.txt etc. Excludes the hashed assets (already uploaded)
+        # and index.html (uploaded last so it never references assets that are not there yet).
+        run: |
+          aws s3 sync apps/web/dist "s3://$WEB_BUCKET" \
+            --delete \
+            --exclude "assets/*" \
+            --exclude "index.html" \
+            --cache-control "public, max-age=3600"
+
+      - name: Upload index.html (no cache)
+        run: |
+          aws s3 cp apps/web/dist/index.html "s3://$WEB_BUCKET/index.html" \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --content-type "text/html; charset=utf-8"
+
+      - name: Invalidate CloudFront cache
+        # The first 1,000 invalidation paths per month are free; "/*" counts as one path.
+        run: |
+          invalidation_id=$(aws cloudfront create-invalidation \
+            --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+            --paths "/*" \
+            --query 'Invalidation.Id' --output text)
+          echo "Invalidation $invalidation_id created - waiting for completion"
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+            --id "$invalidation_id"
+
+      - name: Summary
+        env:
+          SEEDED: ${{ github.event_name == 'workflow_dispatch' && inputs.run_seed }}
+        run: |
+          {
+            echo "### Serverless profile deployed"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Migrations: applied"
+            echo "- Seed: $([ "$SEEDED" = "true" ] && echo 'run' || echo 'skipped')"
+            echo "- Lambda functions: \`$LAMBDA_API_NAME\`, \`$LAMBDA_WORKER_NAME\`, \`$LAMBDA_SCHEDULED_NAME\`"
+            echo "- Web bucket: \`$WEB_BUCKET\` (CloudFront \`$CLOUDFRONT_DISTRIBUTION_ID\` invalidated)"
+            echo "- API base URL baked in: \`$VITE_API_BASE_URL\`"
+          } >> "$GITHUB_STEP_SUMMARY"
